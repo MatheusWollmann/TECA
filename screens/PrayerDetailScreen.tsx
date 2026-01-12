@@ -29,7 +29,7 @@ const PrayerDetailScreen: React.FC<PrayerDetailScreenProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `OraComigo: ${prayer.title}`,
+          title: `Teca: ${prayer.title}`,
           text: `Reze comigo: "${prayer.text.substring(0, 150).replace(/<[^>]+>/g, '')}..."`,
         });
       } catch (e) {}

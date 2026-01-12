@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { User, Prayer, Page, Circulo, Post, UserRole, CirculoScheduleItem, PrayerSchedule } from './types';
+import React, { useState, useEffect } from 'react';
+import { User, Prayer, Page, Circulo, UserRole } from './types';
 import { api } from './api';
 import { MOCK_PRAYERS } from './constants';
 import Header from './components/Header';
@@ -33,13 +33,24 @@ const App: React.FC = () => {
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
     setDarkMode(isDark);
-    
-    // Auto-login if we have a saved user
-    api.login().then(userData => {
-        if (userData) handleLogin();
-        else setIsLoading(false);
-    }).catch(() => setIsLoading(false));
+    refreshData();
   }, []);
+
+  const refreshData = async () => {
+    try {
+        const loggedInUser = await api.login();
+        if (loggedInUser) {
+           const { user: userData, prayers: prayerData, circulos: circuloData } = await api.getData(loggedInUser.id);
+           setUser(userData);
+           setPrayers(prayerData);
+           setCirculos(circuloData);
+        }
+    } catch (e) {
+        console.error("Auth/Data Error", e);
+    } finally {
+        setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (darkMode) {
@@ -53,18 +64,8 @@ const App: React.FC = () => {
 
   const handleLogin = async () => {
     setIsLoading(true);
-    try {
-        const loggedInUser = await api.login();
-        const { user: userData, prayers: prayerData, circulos: circuloData } = await api.getData(loggedInUser.id);
-        setUser(userData);
-        setPrayers(prayerData);
-        setCirculos(circuloData);
-        setCurrentPage(Page.Home);
-    } catch (e) {
-        console.error("Login Error", e);
-    } finally {
-        setIsLoading(false);
-    }
+    await refreshData();
+    setCurrentPage(Page.Home);
   };
 
   const handleLogout = async () => {
@@ -96,8 +97,7 @@ const App: React.FC = () => {
   const handleAddPrayer = async (prayerData: Partial<Prayer>) => {
     if(!user) return;
     const newPrayer = await api.addPrayer(prayerData, user);
-    if (newPrayer) setPrayers([newPrayer, ...prayers]);
-    else alert("Sua contribuição foi enviada para revisão.");
+    setPrayers([newPrayer, ...prayers]);
   };
 
   const handleUpdatePrayer = async (prayerId: string, prayerData: Partial<Prayer>) => {
@@ -121,21 +121,27 @@ const App: React.FC = () => {
     const newCount = await api.incrementPrayerCount(prayerId);
     setPrayers(curr => curr.map(p => p.id === prayerId ? { ...p, prayerCount: newCount } : p));
     const GRACES = 5;
-    const { graces, level } = await api.updateUserGraces(user.id, GRACES);
-    setUser(curr => curr ? { ...curr, graces, level } : null);
+    const { graces, level, totalPrayers, streak } = await api.updateUserGraces(user.id, GRACES);
+    setUser(curr => curr ? { ...curr, graces, level, totalPrayers, streak } : null);
     setPraySuccessMessage(`+${GRACES} Graças! Que sua oração suba aos céus.`);
     setTimeout(() => setPraySuccessMessage(''), 3000);
   };
 
-  const handleSetScheduledPrayer = async (period: any, prayerId: string) => {
+  const handleAddScheduledPrayer = async (period: any, prayerId: string) => {
     if (!user) return;
-    const newSched = await api.setScheduledPrayer(user.id, period, prayerId);
+    const newSched = await api.addScheduledPrayer(user.id, period, prayerId);
     setUser(curr => curr ? { ...curr, schedule: newSched } : null);
   };
 
-  const handleRemoveScheduledPrayer = async (period: any) => {
+  const handleRemoveScheduledPrayer = async (scheduleItemId: string) => {
     if (!user) return;
-    const newSched = await api.removeScheduledPrayer(user.id, period);
+    const newSched = await api.removeScheduledPrayer(user.id, scheduleItemId);
+    setUser(curr => curr ? { ...curr, schedule: newSched } : null);
+  };
+
+  const handleToggleScheduledPrayer = async (scheduleItemId: string) => {
+    if (!user) return;
+    const newSched = await api.toggleScheduledPrayer(user.id, scheduleItemId);
     setUser(curr => curr ? { ...curr, schedule: newSched } : null);
   };
 
@@ -158,6 +164,12 @@ const App: React.FC = () => {
     setCirculos(curr => curr.map(c => c.id === id ? { ...c, posts: [post, ...c.posts] } : c));
   };
 
+  const handlePostReaction = async (cid: string, pid: string, e: string) => {
+    if (!user) return;
+    const updated = await api.handlePostReaction(cid, pid, user.id, e);
+    setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+  };
+
   const renderContent = () => {
     if (!user) return null;
     if (selectedPrayerId) {
@@ -176,10 +188,7 @@ const App: React.FC = () => {
         if (c) return <CirculoDetailScreen
             circulo={c} user={user} prayers={prayers} onBack={clearSelection}
             onToggleMembership={toggleCirculoMembership} onAddPost={addPost}
-            onPostReaction={async (cid, pid, e) => {
-                const updated = await api.handlePostReaction(cid, pid, user.id, e);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
-            }}
+            onPostReaction={handlePostReaction}
             onAddReply={async (cid, pid, t) => {
                 const updated = await api.addReply(cid, pid, t, user);
                 setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
@@ -220,12 +229,12 @@ const App: React.FC = () => {
     }
 
     switch (currentPage) {
-      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] || MOCK_PRAYERS[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
+      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] || MOCK_PRAYERS[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
       case Page.Prayers: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
       case Page.Devotions: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
-      case Page.Circulos: return <CirculoListScreen circulos={circulos} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} />;
+      case Page.Circulos: return <CirculoListScreen circulos={circulos} user={user} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} onRefreshData={refreshData} />;
       case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} />;
-      default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
+      default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
     }
   };
 
@@ -235,12 +244,17 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen text-text-light dark:text-text-dark transition-colors duration-300">
       <Header user={user} onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} currentPage={currentPage} setPage={handleSetPage} />
+      
+      {/* Dock Inferior de Círculos */}
       {user && (currentPage === Page.Circulos || selectedCirculoId !== null) && (
         <CirculoNav user={user} circulos={circulos} onSelectCirculo={handleSelectCirculo} onBackToList={() => handleSetPage(Page.Circulos)} />
       )}
-      <main className={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 transition-all duration-300 ${ (currentPage === Page.Circulos || selectedCirculoId !== null) ? 'md:pl-48' : 'md:pl-24'}`}>
+      
+      {/* Layout principal com padding lateral consistente para o menu principal */}
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 md:pl-24 transition-all duration-300">
         {renderContent()}
       </main>
+      
       <BottomNav currentPage={currentPage} setPage={handleSetPage} />
     </div>
   );

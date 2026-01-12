@@ -4,6 +4,12 @@ export enum UserRole {
   Editor = 'EDITOR',
 }
 
+export interface DayCompletion {
+  morning: boolean;
+  afternoon: boolean;
+  night: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -11,11 +17,14 @@ export interface User {
   city: string;
   avatarUrl: string;
   graces: number;
+  totalPrayers: number;
+  streak: number;
   level: SpiritualLevel;
   favoritePrayerIds: string[];
   joinedCirculoIds: string[];
   role: UserRole;
   schedule: PrayerSchedule[];
+  history: Record<string, DayCompletion>; // Key: "YYYY-MM-DD"
 }
 
 export interface Prayer {
@@ -73,6 +82,7 @@ export interface PrayerSchedule {
   id: string;
   time: 'Manhã' | 'Tarde' | 'Noite';
   prayerId: string;
+  completed: boolean;
 }
 
 export enum Page {

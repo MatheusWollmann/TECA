@@ -1,3 +1,4 @@
+
 import { User, Prayer, Circulo, SpiritualLevel, PrayerCategory, Post, UserRole } from './types';
 
 export const MOCK_USER: User = {
@@ -7,11 +8,18 @@ export const MOCK_USER: User = {
   city: 'Aparecida',
   avatarUrl: 'https://picsum.photos/seed/user1/100/100',
   graces: 125,
+  totalPrayers: 450,
+  streak: 7,
   level: SpiritualLevel.Devoto,
   favoritePrayerIds: ['p1', 'p3'],
   joinedCirculoIds: ['c1'],
   role: UserRole.Editor,
   schedule: [],
+  history: {
+    '2024-05-20': { morning: true, afternoon: true, night: true },
+    '2024-05-21': { morning: true, afternoon: false, night: true },
+    '2024-05-22': { morning: true, afternoon: true, night: true },
+  },
 };
 
 export const PRAYER_CATEGORIES: PrayerCategory[] = [
@@ -39,7 +47,7 @@ export const MOCK_PRAYERS: Prayer[] = [
     id: 'p2',
     title: 'Ave Maria',
     text: '<b>Ave Maria</b>, cheia de graça, o Senhor é convosco, bendita sois vós entre as mulheres e bendito é o fruto do vosso ventre, Jesus. <i>Santa Maria, Mãe de Deus</i>, rogai por nós pecadores, agora e na hora da nossa morte. Amém.',
-    latinText: 'Ave Maria, gratia plena, Dominus tecum, benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostrae. Amen.',
+    latinText: 'Ave Maria, gratia plena, Dominus tecum, benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis pecatoribus, nunc et in hora mortis nostrae. Amen.',
     category: PrayerCategory.Marianas,
     tags: ['#Maria', '#mãe'],
     imageUrl: 'https://picsum.photos/seed/avemaria/400/200',

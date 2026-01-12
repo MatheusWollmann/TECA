@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Circulo, User, Post, Prayer, CirculoScheduleItem } from '../types';
 import { api } from '../api';
@@ -109,8 +107,9 @@ const PostCard: React.FC<{
         return acc;
     }, {} as Record<string, number>);
 
+    // FIX: Explicitly typed parameters in sort to avoid arithmetic error on line 113.
     const sortedReactions = Object.entries(reactionSummary)
-        .sort(([, countA], [, countB]) => countB - countA)
+        .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
         .map(([emoji]) => emoji);
 
     const topReactions = sortedReactions.slice(0, 3);

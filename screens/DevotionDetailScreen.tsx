@@ -81,8 +81,8 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `OraComigo: ${prayer.title}`,
-          text: `Reze comigo esta devoção: "${prayer.title}"\n\nVeja a devoção completa no app OraComigo.`,
+          title: `Teca: ${prayer.title}`,
+          text: `Reze comigo esta devoção: "${prayer.title}"\n\nVeja a devoção completa no app Teca.`,
         });
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {

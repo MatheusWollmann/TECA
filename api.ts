@@ -5,10 +5,9 @@ import {
   MOCK_CIRCULOS,
   SPIRITUAL_LEVELS,
 } from './constants';
-import { User, Prayer, Circulo, Post, SpiritualLevel, UserRole, CirculoScheduleItem, PrayerSchedule } from './types';
+import { User, Prayer, Circulo, Post, SpiritualLevel, UserRole, CirculoScheduleItem, PrayerSchedule, DayCompletion } from './types';
 
-// Persistence Keys
-const DB_KEY = 'oracomigo_db_v1';
+const DB_KEY = 'teca_db_beta';
 
 const getInitialDB = () => {
   const saved = localStorage.getItem(DB_KEY);
@@ -16,17 +15,11 @@ const getInitialDB = () => {
     try {
       return JSON.parse(saved);
     } catch (e) {
-      console.error("Failed to parse saved DB", e);
+      console.error("Erro ao carregar banco local", e);
     }
   }
   return {
-    users: [
-      JSON.parse(JSON.stringify(MOCK_USER)),
-      { id: 'user2', name: 'Carlos', email: 'carlos@email.com', city: 'Piracicaba', avatarUrl: 'https://picsum.photos/seed/carlos/100/100', graces: 300, level: SpiritualLevel.Servo, favoritePrayerIds: ['p2'], joinedCirculoIds: ['c1'], role: UserRole.User, schedule: [] },
-      { id: 'user3', name: 'João', email: 'joao@email.com', city: 'São Paulo', avatarUrl: 'https://picsum.photos/seed/joao/100/100', graces: 80, level: SpiritualLevel.Devoto, favoritePrayerIds: [], joinedCirculoIds: ['c1', 'c2'], role: UserRole.User, schedule: [] },
-      { id: 'user4', name: 'Mariana', email: 'mariana@email.com', city: 'São Paulo', avatarUrl: 'https://picsum.photos/seed/mariana/100/100', graces: 450, level: SpiritualLevel.Servo, favoritePrayerIds: ['p2','p4'], joinedCirculoIds: ['c2'], role: UserRole.User, schedule: [] },
-      { id: 'user5', name: 'Ana Clara', email: 'ana@email.com', city: 'Campinas', avatarUrl: 'https://picsum.photos/seed/anaclara/100/100', graces: 150, level: SpiritualLevel.Devoto, favoritePrayerIds: ['p3'], joinedCirculoIds: ['c3', 'c1'], role: UserRole.User, schedule: [] },
-    ],
+    users: [JSON.parse(JSON.stringify(MOCK_USER))],
     prayers: JSON.parse(JSON.stringify(MOCK_PRAYERS)),
     circulos: JSON.parse(JSON.stringify(MOCK_CIRCULOS)),
   };
@@ -39,52 +32,178 @@ const saveDB = () => {
 };
 
 const SIMULATED_DELAY = 400;
-
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Função auxiliar para calcular o streak real baseado no histórico
+const calculateCurrentStreak = (history: Record<string, DayCompletion>): number => {
+  const dates = Object.keys(history).sort().reverse();
+  if (dates.length === 0) return 0;
+
+  let streak = 0;
+  let today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Verifica se a última entrada foi hoje ou ontem
+  const lastDate = new Date(dates[0] + 'T00:00:00');
+  const diffDays = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
+
+  if (diffDays > 1) return 0; // Quebrou o streak
+
+  for (let i = 0; i < dates.length; i++) {
+    const current = new Date(dates[i] + 'T00:00:00');
+    const prev = i === 0 ? today : new Date(dates[i-1] + 'T00:00:00');
+    
+    // Simplificação para o beta: se houver entrada no dia, conta pro streak
+    streak++;
+    
+    // Se a diferença entre esse dia e o próximo no histórico for maior que 1 dia, para
+    if (i < dates.length - 1) {
+        const nextDate = new Date(dates[i+1] + 'T00:00:00');
+        const gap = Math.floor((current.getTime() - nextDate.getTime()) / (1000 * 3600 * 24));
+        if (gap > 1) break;
+    }
+  }
+  return streak;
+};
+
 export const api = {
-  login: async (): Promise<User> => {
+  login: async (email?: string): Promise<User> => {
     await delay(SIMULATED_DELAY);
-    const user = db.users.find((u: any) => u.id === 'user1');
-    if (!user) throw new Error("User not found");
+    const targetEmail = email || 'fiel@teca.com';
+    const user = db.users.find((u: User) => u.email === targetEmail);
+    if (!user) throw new Error("Usuário não encontrado.");
+    
+    // Ao logar, atualizamos o streak
+    if (user) {
+        user.streak = calculateCurrentStreak(user.history || {});
+        saveDB();
+    }
     return { ...user };
   },
 
-  logout: async (): Promise<void> => {
-    await delay(200);
-    return;
+  signup: async (name: string, email: string): Promise<User> => {
+    await delay(SIMULATED_DELAY);
+    const newUser: User = {
+      id: `u${Date.now()}`,
+      name, email, city: 'Nova Comunidade',
+      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+      graces: 0,
+      totalPrayers: 0,
+      streak: 1,
+      level: SpiritualLevel.Peregrino,
+      favoritePrayerIds: [],
+      joinedCirculoIds: [],
+      role: UserRole.User,
+      schedule: [],
+      history: {}
+    };
+    db.users.push(newUser);
+    saveDB();
+    return { ...newUser };
   },
 
-  getData: async (userId: string): Promise<{ user: User; prayers: Prayer[]; circulos: Circulo[] }> => {
+  getData: async (userId: string) => {
     await delay(SIMULATED_DELAY);
     const user = db.users.find((u: any) => u.id === userId);
-    if (!user) throw new Error("User not found");
     return {
-      user: { ...user },
+      user: user ? { ...user } : null,
       prayers: [...db.prayers],
       circulos: [...db.circulos],
     };
   },
 
-  toggleFavorite: async (userId: string, prayerId: string): Promise<string[]> => {
-    await delay(100);
-    const user = db.users.find((u: any) => u.id === userId);
-    if (!user) throw new Error("User not found");
-
-    const isFavorite = user.favoritePrayerIds.includes(prayerId);
-    if (isFavorite) {
-      user.favoritePrayerIds = user.favoritePrayerIds.filter((id: string) => id !== prayerId);
-    } else {
-      user.favoritePrayerIds.push(prayerId);
+  incrementPrayerCount: async (prayerId: string) => {
+    const prayer = db.prayers.find((p: any) => p.id === prayerId);
+    if (prayer) {
+        prayer.prayerCount += 1;
+        saveDB();
+        return prayer.prayerCount;
     }
+    return 0;
+  },
+
+  toggleFavorite: async (userId: string, prayerId: string) => {
+    const user = db.users.find((u: any) => u.id === userId);
+    if (!user) return [];
+    const idx = user.favoritePrayerIds.indexOf(prayerId);
+    if (idx > -1) user.favoritePrayerIds.splice(idx, 1);
+    else user.favoritePrayerIds.push(prayerId);
     saveDB();
     return [...user.favoritePrayerIds];
   },
-  
-  addPrayer: async (prayerData: Partial<Prayer>, author: User): Promise<Prayer | null> => {
-    await delay(SIMULATED_DELAY);
-    if (author.role !== UserRole.Editor) return null;
+
+  // --- CRONOGRAMA & HISTÓRICO ---
+  addScheduledPrayer: async (userId: string, period: 'Manhã' | 'Tarde' | 'Noite', prayerId: string) => {
+    const user = db.users.find((u: any) => u.id === userId);
+    if (!user) return [];
+    user.schedule.push({ id: `s${Date.now()}`, time: period, prayerId, completed: false });
+    saveDB();
+    return [...user.schedule];
+  },
+
+  removeScheduledPrayer: async (userId: string, scheduleItemId: string) => {
+    const user = db.users.find((u: any) => u.id === userId);
+    if (!user) return [];
+    user.schedule = (user.schedule || []).filter((s: any) => s.id !== scheduleItemId);
+    saveDB();
+    return [...user.schedule];
+  },
+
+  toggleScheduledPrayer: async (userId: string, scheduleItemId: string) => {
+    const user = db.users.find((u: any) => u.id === userId);
+    if (!user) return [];
+    const item = (user.schedule || []).find((s: any) => s.id === scheduleItemId);
+    if (item) {
+        item.completed = !item.completed;
+        
+        // Atualiza Histórico do dia
+        const today = new Date().toISOString().split('T')[0];
+        if (!user.history) user.history = {};
+        if (!user.history[today]) user.history[today] = { morning: false, afternoon: false, night: false };
+        
+        const checkPeriod = (p: 'Manhã' | 'Tarde' | 'Noite') => {
+            const periodPrayers = user.schedule.filter((s:any) => s.time === p);
+            return periodPrayers.length > 0 && periodPrayers.every((s:any) => s.completed);
+        }
+
+        user.history[today].morning = checkPeriod('Manhã');
+        user.history[today].afternoon = checkPeriod('Tarde');
+        user.history[today].night = checkPeriod('Noite');
+        
+        user.streak = calculateCurrentStreak(user.history);
+        saveDB();
+    }
+    return [...user.schedule];
+  },
+
+  // --- GAMIFICATION ---
+  updateUserGraces: async (userId: string, amount: number) => {
+    const user = db.users.find((u: any) => u.id === userId);
+    if (!user) return { graces: 0, level: SpiritualLevel.Peregrino };
     
+    const today = new Date().toISOString().split('T')[0];
+    user.graces += amount;
+    user.totalPrayers += 1;
+    
+    // Garantir que o dia existe no histórico para não quebrar o streak
+    if (!user.history) user.history = {};
+    if (!user.history[today]) {
+        user.history[today] = { morning: false, afternoon: false, night: false };
+    }
+    
+    user.streak = calculateCurrentStreak(user.history);
+
+    for (const level in SPIRITUAL_LEVELS) {
+        if (user.graces >= SPIRITUAL_LEVELS[level as SpiritualLevel].min) {
+            user.level = level as SpiritualLevel;
+        }
+    }
+    saveDB();
+    return { graces: user.graces, level: user.level, totalPrayers: user.totalPrayers, streak: user.streak };
+  },
+
+  // --- OUTROS MÉTODOS ---
+  addPrayer: async (prayerData: Partial<Prayer>, author: User): Promise<Prayer> => {
     const newPrayer: Prayer = {
         id: `p${Date.now()}`,
         title: prayerData.title || 'Sem Título',
@@ -92,7 +211,6 @@ export const api = {
         category: prayerData.category!,
         tags: prayerData.tags || [],
         latinText: prayerData.latinText,
-        parentPrayerId: prayerData.parentPrayerId,
         authorId: author.id,
         authorName: author.name,
         createdAt: 'Agora mesmo',
@@ -104,67 +222,23 @@ export const api = {
     return { ...newPrayer };
   },
 
-  updatePrayer: async (prayerId: string, prayerData: Partial<Prayer>, user: User): Promise<Prayer | null> => {
-    await delay(SIMULATED_DELAY);
-    const prayer = db.prayers.find((p: any) => p.id === prayerId);
-    if (!prayer) throw new Error("Prayer not found");
-    if(user.role !== UserRole.Editor) return null;
-    Object.assign(prayer, prayerData);
+  addPost: async (circuloId: string, text: string, author: User): Promise<Post> => {
+    const circulo = db.circulos.find((c: any) => c.id === circuloId);
+    if (!circulo) throw new Error("Círculo não encontrado");
+    const newPost: Post = {
+        id: `post${Date.now()}`,
+        authorId: author.id, authorName: author.name, authorAvatarUrl: author.avatarUrl,
+        text, createdAt: 'Agora', reactions: [], replies: [],
+    };
+    circulo.posts.unshift(newPost);
     saveDB();
-    return JSON.parse(JSON.stringify(prayer));
+    return { ...newPost };
   },
 
-  incrementPrayerCount: async (prayerId: string): Promise<number> => {
-    const prayer = db.prayers.find((p: any) => p.id === prayerId);
-    if (!prayer) throw new Error("Prayer not found");
-    prayer.prayerCount += 1;
-    saveDB();
-    return prayer.prayerCount;
-  },
-
-  updateUserGraces: async (userId: string, graceAmount: number): Promise<{graces: number, level: SpiritualLevel}> => {
-    const user = db.users.find((u: any) => u.id === userId);
-    if (!user) throw new Error("User not found");
-    user.graces += graceAmount;
-
-    let newLevel = user.level;
-    for (const level in SPIRITUAL_LEVELS) {
-        if (user.graces >= SPIRITUAL_LEVELS[level as SpiritualLevel].min) {
-            newLevel = level as SpiritualLevel;
-        }
-    }
-    user.level = newLevel;
-    saveDB();
-    return { graces: user.graces, level: user.level };
-  },
-
-  setScheduledPrayer: async (userId: string, period: 'Manhã' | 'Tarde' | 'Noite', prayerId: string): Promise<PrayerSchedule[]> => {
-    const user = db.users.find((u: User) => u.id === userId);
-    if (!user) throw new Error("User not found");
-    if (!user.schedule) user.schedule = [];
-    const idx = user.schedule.findIndex((s: any) => s.time === period);
-    if (idx > -1) {
-      user.schedule[idx].prayerId = prayerId;
-    } else {
-      user.schedule.push({ id: `sched-${Date.now()}`, time: period, prayerId });
-    }
-    saveDB();
-    return JSON.parse(JSON.stringify(user.schedule));
-  },
-
-  removeScheduledPrayer: async (userId: string, period: 'Manhã' | 'Tarde' | 'Noite'): Promise<PrayerSchedule[]> => {
-    const user = db.users.find((u: User) => u.id === userId);
-    if (!user) throw new Error("User not found");
-    user.schedule = (user.schedule || []).filter((s: any) => s.time !== period);
-    saveDB();
-    return JSON.parse(JSON.stringify(user.schedule));
-  },
-
-  toggleCirculoMembership: async (userId: string, circuloId: string): Promise<{ joinedCirculoIds: string[], memberCount: number }> => {
+  toggleCirculoMembership: async (userId: string, circuloId: string) => {
     const user = db.users.find((u: any) => u.id === userId);
     const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!user || !circulo) throw new Error("User or Circulo not found");
-
+    if (!user || !circulo) return { joinedCirculoIds: [], memberCount: 0 };
     const isMember = user.joinedCirculoIds.includes(circuloId);
     if (isMember) {
       user.joinedCirculoIds = user.joinedCirculoIds.filter((id: string) => id !== circuloId);
@@ -176,143 +250,160 @@ export const api = {
     saveDB();
     return { joinedCirculoIds: [...user.joinedCirculoIds], memberCount: circulo.memberCount };
   },
+
+  logout: async () => await delay(100),
   
-  addPost: async (circuloId: string, text: string, author: User): Promise<Post> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo) throw new Error("Circulo not found");
-    const newPost: Post = {
-        id: `post${Date.now()}`,
-        authorId: author.id, authorName: author.name, authorAvatarUrl: author.avatarUrl,
-        text, createdAt: 'Agora', reactions: [], replies: [],
-    };
-    circulo.posts.unshift(newPost);
-    saveDB();
-    return { ...newPost };
-  },
-
-  addReply: async (circuloId: string, parentPostId: string, text: string, author: User): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo) throw new Error("Circulo not found");
-    const newReply: Post = {
-        id: `reply${Date.now()}`,
-        authorId: author.id, authorName: author.name, authorAvatarUrl: author.avatarUrl,
-        text, createdAt: 'Agora', reactions: [], replies: [],
-    };
-    const add = (posts: Post[]): boolean => {
-        for (const post of posts) {
-            if (post.id === parentPostId) { post.replies.push(newReply); return true; }
-            if (post.replies && add(post.replies)) return true;
-        }
-        return false;
-    };
-    add(circulo.posts);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
-  },
-
-  handlePostReaction: async (circuloId: string, postId: string, userId: string, emoji: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo) throw new Error("Circulo not found");
-    const react = (posts: Post[]): boolean => {
-      for (const post of posts) {
-        if (post.id === postId) {
-          const idx = post.reactions.findIndex(r => r.userId === userId);
-          if (idx > -1) {
-            if (post.reactions[idx].emoji === emoji) post.reactions.splice(idx, 1);
-            else post.reactions[idx].emoji = emoji;
-          } else post.reactions.push({ userId, emoji });
-          return true; 
-        }
-        if (post.replies && react(post.replies)) return true;
-      }
-      return false;
-    };
-    react(circulo.posts);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
-  },
-
-  getCirculoMembers: async (circuloId: string): Promise<User[]> => {
-    return JSON.parse(JSON.stringify(db.users.filter((u: any) => u.joinedCirculoIds.includes(circuloId))));
-  },
-
-  updateCirculo: async (circuloId: string, data: Partial<Circulo>, updaterId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(updaterId)) throw new Error("Denied");
-    Object.assign(circulo, data);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
-  },
-
-  deletePost: async (circuloId: string, postId: string, deleterId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(deleterId)) throw new Error("Denied");
-    const del = (posts: Post[]): boolean => {
-        const idx = posts.findIndex(p => p.id === postId);
-        if (idx !== -1) { posts.splice(idx, 1); return true; }
-        for (const post of posts) if (post.replies && del(post.replies)) return true;
-        return false;
-    };
-    del(circulo.posts);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
-  },
-
-  pinPost: async (circuloId: string, postId: string, pinnerId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(pinnerId)) throw new Error("Denied");
-    const post = circulo.posts.find((p: any) => p.id === postId);
-    if (post) {
-        const wasPinned = post.isPinned;
-        circulo.posts.forEach((p: any) => p.isPinned = false);
-        post.isPinned = !wasPinned;
+  // FIX: Added addCirculo and fixed signatures for updatePrayer and all circle management methods
+  updatePrayer: async (prayerId: string, prayerData: Partial<Prayer>, user: User): Promise<Prayer | null> => {
+    const prayer = db.prayers.find((p: any) => p.id === prayerId);
+    if (prayer) {
+      Object.assign(prayer, prayerData);
+      saveDB();
+      return { ...prayer };
     }
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+    return null;
   },
 
-  updateMemberRole: async (circuloId: string, memberId: string, isMod: boolean, updaterId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(updaterId)) throw new Error("Denied");
-    if (isMod) { if (!circulo.moderatorIds.includes(memberId)) circulo.moderatorIds.push(memberId); }
-    else circulo.moderatorIds = circulo.moderatorIds.filter((id: string) => id !== memberId);
+  addCirculo: async (data: { name: string; description: string }, user: User): Promise<Circulo> => {
+    const newCirculo: Circulo = {
+      id: `c${Date.now()}`,
+      name: data.name,
+      description: data.description,
+      leaderId: user.id,
+      moderatorIds: [user.id],
+      memberCount: 1,
+      imageUrl: `https://picsum.photos/seed/${data.name}/200/200`,
+      coverImageUrl: `https://picsum.photos/seed/${data.name}_cover/800/200`,
+      externalLinks: [],
+      posts: [],
+      schedule: []
+    };
+    db.circulos.push(newCirculo);
+    user.joinedCirculoIds.push(newCirculo.id);
     saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+    return { ...newCirculo };
   },
 
-  removeMember: async (circuloId: string, memberId: string, removerId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    const member = db.users.find((u: any) => u.id === memberId);
-    if (!circulo || !member || !circulo.moderatorIds.includes(removerId)) throw new Error("Denied");
-    member.joinedCirculoIds = member.joinedCirculoIds.filter((id: string) => id !== circuloId);
-    circulo.memberCount = db.users.filter((u: any) => u.joinedCirculoIds.includes(circuloId)).length;
-    circulo.moderatorIds = circulo.moderatorIds.filter((id: string) => id !== memberId);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+  addReply: async (cid: string, pid: string, text: string, user: User) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (!circulo) return null;
+    const post = circulo.posts.find((p: any) => p.id === pid);
+    if (post) {
+      const reply: Post = {
+        id: `rep${Date.now()}`,
+        authorId: user.id, authorName: user.name, authorAvatarUrl: user.avatarUrl,
+        text, createdAt: 'Agora', reactions: [], replies: [],
+      };
+      post.replies.push(reply);
+      saveDB();
+    }
+    return { ...circulo };
   },
 
-  addScheduleItem: async (circuloId: string, item: Omit<CirculoScheduleItem, 'id'>, adderId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(adderId)) throw new Error("Denied");
-    circulo.schedule.push({ ...item, id: `s${Date.now()}` });
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+  deletePost: async (cid: string, pid: string, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      circulo.posts = circulo.posts.filter((p: any) => p.id !== pid);
+      saveDB();
+    }
+    return { ...circulo };
   },
 
-  updateScheduleItem: async (circuloId: string, itemId: string, item: Omit<CirculoScheduleItem, 'id'>, updaterId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(updaterId)) throw new Error("Denied");
-    const idx = circulo.schedule.findIndex((s: any) => s.id === itemId);
-    if (idx > -1) circulo.schedule[idx] = { ...item, id: itemId };
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+  pinPost: async (cid: string, pid: string, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      const post = circulo.posts.find((p: any) => p.id === pid);
+      if (post) {
+        post.isPinned = !post.isPinned;
+        saveDB();
+      }
+    }
+    return { ...circulo };
   },
 
-  deleteScheduleItem: async (circuloId: string, itemId: string, deleterId: string): Promise<Circulo> => {
-    const circulo = db.circulos.find((c: any) => c.id === circuloId);
-    if (!circulo || !circulo.moderatorIds.includes(deleterId)) throw new Error("Denied");
-    circulo.schedule = circulo.schedule.filter((s: any) => s.id !== itemId);
-    saveDB();
-    return JSON.parse(JSON.stringify(circulo));
+  updateMemberRole: async (cid: string, mid: string, isModerator: boolean, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && (circulo.leaderId === uid || circulo.moderatorIds.includes(uid))) {
+      if (isModerator && !circulo.moderatorIds.includes(mid)) {
+        circulo.moderatorIds.push(mid);
+      } else if (!isModerator) {
+        circulo.moderatorIds = circulo.moderatorIds.filter((id: string) => id !== mid);
+      }
+      saveDB();
+    }
+    return { ...circulo };
   },
+
+  removeMember: async (cid: string, mid: string, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    const userToRemove = db.users.find((u: any) => u.id === mid);
+    if (circulo && circulo.moderatorIds.includes(uid) && userToRemove) {
+      userToRemove.joinedCirculoIds = userToRemove.joinedCirculoIds.filter((id: string) => id !== cid);
+      circulo.memberCount -= 1;
+      circulo.moderatorIds = circulo.moderatorIds.filter((id: string) => id !== mid);
+      saveDB();
+    }
+    return { ...circulo };
+  },
+
+  addScheduleItem: async (cid: string, item: Omit<CirculoScheduleItem, 'id'>, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      circulo.schedule.push({ ...item, id: `cs${Date.now()}` });
+      saveDB();
+    }
+    return { ...circulo };
+  },
+
+  updateScheduleItem: async (cid: string, itemId: string, item: Omit<CirculoScheduleItem, 'id'>, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      const existing = circulo.schedule.find((i: any) => i.id === itemId);
+      if (existing) {
+        Object.assign(existing, item);
+        saveDB();
+      }
+    }
+    return { ...circulo };
+  },
+
+  deleteScheduleItem: async (cid: string, itemId: string, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      circulo.schedule = circulo.schedule.filter((i: any) => i.id !== itemId);
+      saveDB();
+    }
+    return { ...circulo };
+  },
+
+  updateCirculo: async (cid: string, data: Partial<Circulo>, uid: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      Object.assign(circulo, data);
+      saveDB();
+    }
+    return { ...circulo };
+  },
+
+  getCirculoMembers: async (id: string) => db.users.filter((u: any) => u.joinedCirculoIds.includes(id)),
+  
+  handlePostReaction: async (cid: string, pid: string, uid: string, emoji: string) => {
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (!circulo) return null;
+    const post = circulo.posts.find((p: any) => p.id === pid);
+    if (post) {
+      const existing = post.reactions.find((r: any) => r.userId === uid);
+      if (existing) {
+        if (existing.emoji === emoji) {
+          post.reactions = post.reactions.filter((r: any) => r.userId !== uid);
+        } else {
+          existing.emoji = emoji;
+        }
+      } else {
+        post.reactions.push({ userId: uid, emoji });
+      }
+      saveDB();
+    }
+    return { ...circulo };
+  }
 };
