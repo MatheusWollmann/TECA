@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Circulo, User, Post, Prayer, CirculoScheduleItem } from '../types';
 import { api } from '../api';
@@ -512,7 +513,7 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
                                     <img className="w-12 h-12 rounded-full" src={member.avatarUrl} alt={member.name} />
                                     <div>
                                         <p className="font-semibold text-gray-800 dark:text-gray-100 flex items-center">{member.name} 
-                                            {isCirculoLeader && <CrownIcon title="Líder" className="w-4 h-4 ml-2 text-yellow-500" />}
+                                            {isCirculoLeader && <CrownIcon className="w-4 h-4 ml-2 text-yellow-500" />}
                                         </p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{isCirculoModerator && !isCirculoLeader ? 'Moderador' : member.level}</p>
                                     </div>

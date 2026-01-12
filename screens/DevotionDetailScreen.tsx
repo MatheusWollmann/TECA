@@ -1,8 +1,7 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Prayer, User } from '../types';
-import { ArrowLeftIcon, BookmarkIcon, HeartIcon, PlayCircleIcon, PauseCircleIcon, LoaderIcon, ShareIcon, EditIcon, XIcon } from '../components/Icons';
+import { ArrowLeftIcon, BookmarkIcon, HeartIcon, ShareIcon, EditIcon, XIcon } from '../components/Icons';
 import Modal from '../components/Modal';
 import PrayerForm from '../components/PrayerForm';
 
@@ -15,11 +14,6 @@ interface DevotionDetailScreenProps {
   onToggleFavorite: (prayerId: string) => void;
   onUpdatePrayer: (prayerId: string, prayerData: Partial<Prayer>) => void;
   praySuccessMessage: string;
-  onPlayAudio: (prayerId: string) => void;
-  onStopAudio: () => void;
-  isGeneratingAudio: boolean;
-  isPlayingAudio: boolean;
-  audioError: string;
   onSelectPrayer: (prayerId:string) => void;
 }
 
@@ -69,7 +63,6 @@ const DevotionRenderer: React.FC<{
                         </React.Fragment>
                     );
                 }
-                // Use dangerouslySetInnerHTML for parts that might contain HTML from the editor
                 return <span key={index} dangerouslySetInnerHTML={{ __html: part }} />;
             })}
         </div>
@@ -78,20 +71,11 @@ const DevotionRenderer: React.FC<{
 
 
 const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({ 
-    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage,
-    onPlayAudio, onStopAudio, isGeneratingAudio, isPlayingAudio, audioError, onSelectPrayer
+    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage, onSelectPrayer
 }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const isFavorite = user.favoritePrayerIds.includes(prayer.id);
   const parentPrayer = prayer.parentPrayerId ? prayers.find(p => p.id === prayer.parentPrayerId) : null;
-
-  const handleAudioButtonClick = () => {
-    if (isPlayingAudio) {
-      onStopAudio();
-    } else {
-      onPlayAudio(prayer.id);
-    }
-  };
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -173,11 +157,6 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
             {praySuccessMessage}
             </div>
         )}
-        {audioError && (
-            <div className="p-3 text-center bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-lg font-semibold">
-            {audioError}
-            </div>
-        )}
       </div>
 
       <div className="sticky bottom-4 mt-6 flex gap-2 sm:gap-3 z-20 items-center justify-center flex-wrap">
@@ -188,21 +167,6 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
           Rezei esta Devoção
         </button>
         <div className="flex gap-2 sm:gap-3">
-            <button
-                onClick={handleAudioButtonClick}
-                disabled={isGeneratingAudio}
-                className="bg-white dark:bg-gray-700 p-3 rounded-full shadow-lg text-gold-subtle disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label={isPlayingAudio ? 'Parar áudio' : 'Ouvir devoção'}
-            >
-                {isGeneratingAudio ? (
-                    <LoaderIcon className="w-7 h-7" />
-                ) : isPlayingAudio ? (
-                    <PauseCircleIcon className="w-7 h-7" />
-                ) : (
-                    <PlayCircleIcon className="w-7 h-7" />
-                )}
-            </button>
-
             <button
                 onClick={() => setIsEditModalOpen(true)}
                 className="bg-white dark:bg-gray-700 p-3 rounded-xl shadow-lg"

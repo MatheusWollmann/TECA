@@ -1,8 +1,8 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Prayer, Page, Circulo, Post, UserRole, CirculoScheduleItem, PrayerSchedule } from './types';
 import { api } from './api';
+import { MOCK_PRAYERS } from './constants';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import AuthScreen from './screens/AuthScreen';
@@ -14,38 +14,7 @@ import PrayerDetailScreen from './screens/PrayerDetailScreen';
 import DevotionDetailScreen from './screens/DevotionDetailScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
 import CirculoNav from './components/CirculoNav';
-import { GoogleGenAI, Modality } from "@google/genai";
 import { LoaderIcon } from './components/Icons';
-
-// --- Audio Helper Functions ---
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
-}
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -61,37 +30,15 @@ const App: React.FC = () => {
 
   const [praySuccessMessage, setPraySuccessMessage] = useState('');
 
-  // --- Audio State ---
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioError, setAudioError] = useState('');
-  const audioContextRef = useRef<AudioContext | null>(null);
-  // FIX: Changed BufferSourceNode to AudioBufferSourceNode which is the correct type.
-  const audioSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
-
-  // Helper function to prepare text for Text-to-Speech, especially for devotions
-  const getPrayerTextForAudio = (prayer: Prayer): string => {
-    if (!prayer.isDevotion) {
-        // For regular prayers, just strip HTML tags
-        return prayer.text.replace(/<[^>]+>/g, '');
-    }
-
-    // For devotions, replace prayer links like [prayer:p1] with the actual prayer title
-    const audioText = prayer.text.replace(/\[prayer:(p[\w-]+)\]/g, (_match, prayerId) => {
-        const linkedPrayer = prayers.find(p => p.id === prayerId);
-        return linkedPrayer ? linkedPrayer.title : ''; // Replace with title or empty string if not found
-    });
-    
-    // Finally, strip any HTML tags from the resulting text
-    return audioText.replace(/<[^>]+>/g, '');
-  };
-
-
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
     setDarkMode(isDark);
-    // In a real app, you'd check a token here. For now, we start logged out.
-    setIsLoading(false);
+    
+    // Auto-login if we have a saved user
+    api.login().then(userData => {
+        if (userData) handleLogin();
+        else setIsLoading(false);
+    }).catch(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -106,13 +53,18 @@ const App: React.FC = () => {
 
   const handleLogin = async () => {
     setIsLoading(true);
-    const loggedInUser = await api.login();
-    const { user: userData, prayers: prayerData, circulos: circuloData } = await api.getData(loggedInUser.id);
-    setUser(userData);
-    setPrayers(prayerData);
-    setCirculos(circuloData);
-    setCurrentPage(Page.Home);
-    setIsLoading(false);
+    try {
+        const loggedInUser = await api.login();
+        const { user: userData, prayers: prayerData, circulos: circuloData } = await api.getData(loggedInUser.id);
+        setUser(userData);
+        setPrayers(prayerData);
+        setCirculos(circuloData);
+        setCurrentPage(Page.Home);
+    } catch (e) {
+        console.error("Login Error", e);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -122,26 +74,12 @@ const App: React.FC = () => {
     setCirculos([]);
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-  
-  const handleStopAudio = () => {
-    if (audioSourceNodeRef.current) {
-        audioSourceNodeRef.current.stop();
-        audioSourceNodeRef.current.disconnect();
-        audioSourceNodeRef.current = null;
-    }
-    setIsPlayingAudio(false);
-    setIsGeneratingAudio(false);
-  };
+  const toggleDarkMode = () => setDarkMode(!darkMode);
 
   const clearSelection = () => {
-    handleStopAudio();
     setSelectedPrayerId(null);
     setSelectedCirculoId(null);
     setPraySuccessMessage('');
-    setAudioError('');
   }
 
   const handleSetPage = (page: Page) => {
@@ -149,36 +87,28 @@ const App: React.FC = () => {
     setCurrentPage(page);
   }
 
-  // --- Prayer Logic ---
   const toggleFavorite = async (prayerId: string) => {
     if (!user) return;
     const newFavoriteIds = await api.toggleFavorite(user.id, prayerId);
-    setUser(currentUser => currentUser ? { ...currentUser, favoritePrayerIds: newFavoriteIds } : null);
+    setUser(curr => curr ? { ...curr, favoritePrayerIds: newFavoriteIds } : null);
   };
 
   const handleAddPrayer = async (prayerData: Partial<Prayer>) => {
     if(!user) return;
     const newPrayer = await api.addPrayer(prayerData, user);
-    if (newPrayer) {
-      setPrayers([newPrayer, ...prayers]);
-    } else {
-      alert("Sua contribuição foi enviada para revisão por um editor. Obrigado!");
-    }
+    if (newPrayer) setPrayers([newPrayer, ...prayers]);
+    else alert("Sua contribuição foi enviada para revisão.");
   };
 
   const handleUpdatePrayer = async (prayerId: string, prayerData: Partial<Prayer>) => {
     if (!user) return;
-    const updatedPrayer = await api.updatePrayer(prayerId, prayerData, user);
-    if (updatedPrayer) {
-        setPrayers(currentPrayers => currentPrayers.map(p => p.id === prayerId ? updatedPrayer : p));
-        // Force a re-render of the detail view by clearing and setting the ID again, ensuring it picks up the new data
+    const updated = await api.updatePrayer(prayerId, prayerData, user);
+    if (updated) {
+        setPrayers(curr => curr.map(p => p.id === prayerId ? updated : p));
         setSelectedPrayerId(null);
-        setTimeout(() => setSelectedPrayerId(updatedPrayer.id), 0);
-    } else {
-        alert("Sua sugestão de edição foi enviada para revisão. Obrigado!");
-    }
+        setTimeout(() => setSelectedPrayerId(updated.id), 0);
+    } else alert("Sugestão de edição enviada!");
   };
-
 
   const handleSelectPrayer = (prayerId: string) => {
     clearSelection();
@@ -188,277 +118,130 @@ const App: React.FC = () => {
 
   const handlePray = async (prayerId: string) => {
     if (!user) return;
-
-    const newPrayerCount = await api.incrementPrayerCount(prayerId);
-    setPrayers(currentPrayers => 
-        currentPrayers.map(p => 
-            p.id === prayerId ? { ...p, prayerCount: newPrayerCount } : p
-        )
-    );
-
-    const GRACES_PER_PRAYER = 5;
-    const { graces, level } = await api.updateUserGraces(user.id, GRACES_PER_PRAYER);
-    setUser(currentUser => currentUser ? { ...currentUser, graces, level } : null);
-
-    setPraySuccessMessage(`+${GRACES_PER_PRAYER} Graças! Sua oração foi elevada.`);
+    const newCount = await api.incrementPrayerCount(prayerId);
+    setPrayers(curr => curr.map(p => p.id === prayerId ? { ...p, prayerCount: newCount } : p));
+    const GRACES = 5;
+    const { graces, level } = await api.updateUserGraces(user.id, GRACES);
+    setUser(curr => curr ? { ...curr, graces, level } : null);
+    setPraySuccessMessage(`+${GRACES} Graças! Que sua oração suba aos céus.`);
     setTimeout(() => setPraySuccessMessage(''), 3000);
   };
 
-  // --- Schedule Logic ---
-  const handleSetScheduledPrayer = async (period: 'Manhã' | 'Tarde' | 'Noite', prayerId: string) => {
+  const handleSetScheduledPrayer = async (period: any, prayerId: string) => {
     if (!user) return;
-    const newSchedule = await api.setScheduledPrayer(user.id, period, prayerId);
-    setUser(currentUser => currentUser ? { ...currentUser, schedule: newSchedule } : null);
+    const newSched = await api.setScheduledPrayer(user.id, period, prayerId);
+    setUser(curr => curr ? { ...curr, schedule: newSched } : null);
   };
 
-  const handleRemoveScheduledPrayer = async (period: 'Manhã' | 'Tarde' | 'Noite') => {
+  const handleRemoveScheduledPrayer = async (period: any) => {
     if (!user) return;
-    const newSchedule = await api.removeScheduledPrayer(user.id, period);
-    setUser(currentUser => currentUser ? { ...currentUser, schedule: newSchedule } : null);
+    const newSched = await api.removeScheduledPrayer(user.id, period);
+    setUser(curr => curr ? { ...curr, schedule: newSched } : null);
   };
 
-  // --- Audio Logic ---
-  const handlePlayPrayerAudio = async (prayerId: string) => {
-    if (isGeneratingAudio || isPlayingAudio) return;
-
-    const prayer = prayers.find(p => p.id === prayerId);
-    if (!prayer) {
-        setAudioError("Oração não encontrada.");
-        return;
-    }
-
-    const textForAudio = getPrayerTextForAudio(prayer);
-
-    setIsGeneratingAudio(true);
-    setAudioError('');
-    
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-      const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
-          contents: [{ parts: [{ text: `Diga com uma voz serena e calma: ${textForAudio}` }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: 'Kore' },
-                },
-            },
-          },
-      });
-
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-      }
-      if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
-      
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!base64Audio) throw new Error("No audio data received.");
-      
-      const audioBuffer = await decodeAudioData(decode(base64Audio), audioContextRef.current, 24000, 1);
-
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
-      source.start();
-      
-      source.onended = () => { setIsPlayingAudio(false); audioSourceNodeRef.current = null; };
-      audioSourceNodeRef.current = source;
-      setIsPlayingAudio(true);
-
-    } catch (error) {
-      console.error("Error generating audio:", error);
-      setAudioError("Não foi possível gerar o áudio. Tente novamente.");
-    } finally {
-      setIsGeneratingAudio(false);
-    }
-  };
-  
-  // --- Circulo Logic ---
-  const handleSelectCirculo = (circuloId: string) => {
+  const handleSelectCirculo = (id: string) => {
     clearSelection();
-    setSelectedCirculoId(circuloId);
+    setSelectedCirculoId(id);
     window.scrollTo(0, 0);
   };
 
-  const toggleCirculoMembership = async (circuloId: string) => {
+  const toggleCirculoMembership = async (id: string) => {
     if (!user) return;
-    const { joinedCirculoIds, memberCount } = await api.toggleCirculoMembership(user.id, circuloId);
-
-    setUser(currentUser => currentUser ? { ...currentUser, joinedCirculoIds } : null);
-    setCirculos(currentCirculos => 
-      currentCirculos.map(c => c.id === circuloId ? { ...c, memberCount } : c)
-    );
+    const { joinedCirculoIds, memberCount } = await api.toggleCirculoMembership(user.id, id);
+    setUser(curr => curr ? { ...curr, joinedCirculoIds } : null);
+    setCirculos(curr => curr.map(c => c.id === id ? { ...c, memberCount } : c));
   };
 
-  const addPost = async (circuloId: string, text: string) => {
+  const addPost = async (id: string, text: string) => {
     if (!user) return;
-    const newPost = await api.addPost(circuloId, text, user);
-    setCirculos(currentCirculos =>
-        currentCirculos.map(c =>
-            c.id === circuloId ? { ...c, posts: [newPost, ...c.posts] } : c
-        )
-    );
-  };
-
-  const handleAddReply = async (circuloId: string, postId: string, text: string) => {
-    if (!user) return;
-    const updatedCirculo = await api.addReply(circuloId, postId, text, user);
-    setCirculos(currentCirculos =>
-        currentCirculos.map(c => (c.id === circuloId ? updatedCirculo : c))
-    );
-  };
-
-  const handlePostReaction = async (circuloId: string, postId: string, emoji: string) => {
-    if (!user) return;
-    const updatedCirculo = await api.handlePostReaction(circuloId, postId, user.id, emoji);
-    setCirculos(currentCirculos =>
-        currentCirculos.map(c => (c.id === circuloId ? updatedCirculo : c))
-    );
-  };
-
-  const handleUpdateCirculo = async (circuloId: string, data: Partial<Circulo>) => {
-    if(!user) return;
-    const updatedCirculo = await api.updateCirculo(circuloId, data, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-
-  const handleDeletePost = async (circuloId: string, postId: string) => {
-    if(!user) return;
-    const updatedCirculo = await api.deletePost(circuloId, postId, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-
-  const handlePinPost = async (circuloId: string, postId: string) => {
-    if(!user) return;
-    const updatedCirculo = await api.pinPost(circuloId, postId, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-
-  const handleUpdateMemberRole = async (circuloId: string, memberId: string, isModerator: boolean) => {
-    if(!user) return;
-    const updatedCirculo = await api.updateMemberRole(circuloId, memberId, isModerator, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-  
-  const handleRemoveMember = async (circuloId: string, memberId: string) => {
-    if(!user) return;
-    const updatedCirculo = await api.removeMember(circuloId, memberId, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-  
-  const handleAddScheduleItem = async (circuloId: string, item: Omit<CirculoScheduleItem, 'id'>) => {
-    if(!user) return;
-    const updatedCirculo = await api.addScheduleItem(circuloId, item, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-  
-  const handleUpdateScheduleItem = async (circuloId: string, itemId: string, item: Omit<CirculoScheduleItem, 'id'>) => {
-    if(!user) return;
-    const updatedCirculo = await api.updateScheduleItem(circuloId, itemId, item, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
-  };
-  
-  const handleDeleteScheduleItem = async (circuloId: string, itemId: string) => {
-    if(!user) return;
-    const updatedCirculo = await api.deleteScheduleItem(circuloId, itemId, user.id);
-    setCirculos(currentCirculos => currentCirculos.map(c => c.id === circuloId ? updatedCirculo : c));
+    const post = await api.addPost(id, text, user);
+    setCirculos(curr => curr.map(c => c.id === id ? { ...c, posts: [post, ...c.posts] } : c));
   };
 
   const renderContent = () => {
-    if (!user) return null; // Should be handled by the main return block
-    
+    if (!user) return null;
     if (selectedPrayerId) {
-        const selectedPrayer = prayers.find(p => p.id === selectedPrayerId);
-        if (selectedPrayer) {
-            if (selectedPrayer.isDevotion) {
-                 return <DevotionDetailScreen 
-                    prayer={selectedPrayer} prayers={prayers} user={user} onBack={clearSelection}
-                    onPray={handlePray} onToggleFavorite={toggleFavorite} onUpdatePrayer={handleUpdatePrayer}
-                    praySuccessMessage={praySuccessMessage} onPlayAudio={handlePlayPrayerAudio}
-                    onStopAudio={handleStopAudio} isGeneratingAudio={isGeneratingAudio}
-                    isPlayingAudio={isPlayingAudio} audioError={audioError} onSelectPrayer={handleSelectPrayer}
-                />
-            }
-            return <PrayerDetailScreen 
-                prayer={selectedPrayer} prayers={prayers} user={user} onBack={clearSelection}
+        const p = prayers.find(x => x.id === selectedPrayerId);
+        if (p) {
+            const DetailScreen = p.isDevotion ? DevotionDetailScreen : PrayerDetailScreen;
+            return <DetailScreen 
+                prayer={p} prayers={prayers} user={user} onBack={clearSelection}
                 onPray={handlePray} onToggleFavorite={toggleFavorite} onUpdatePrayer={handleUpdatePrayer}
-                praySuccessMessage={praySuccessMessage} onPlayAudio={handlePlayPrayerAudio}
-                onStopAudio={handleStopAudio} isGeneratingAudio={isGeneratingAudio}
-                isPlayingAudio={isPlayingAudio} audioError={audioError} onSelectPrayer={handleSelectPrayer}
+                praySuccessMessage={praySuccessMessage} onSelectPrayer={handleSelectPrayer}
             />
         }
     }
-    
     if (selectedCirculoId) {
-        const selectedCirculo = circulos.find(c => c.id === selectedCirculoId);
-        if (selectedCirculo) {
-            return <CirculoDetailScreen
-                circulo={selectedCirculo} user={user} prayers={prayers} onBack={clearSelection}
-                onToggleMembership={toggleCirculoMembership} onAddPost={addPost}
-                onPostReaction={handlePostReaction} onAddReply={handleAddReply}
-                onUpdateCirculo={handleUpdateCirculo}
-                onDeletePost={handleDeletePost}
-                onPinPost={handlePinPost}
-                onUpdateMemberRole={handleUpdateMemberRole}
-                onRemoveMember={handleRemoveMember}
-                onAddScheduleItem={handleAddScheduleItem}
-                onUpdateScheduleItem={handleUpdateScheduleItem}
-                onDeleteScheduleItem={handleDeleteScheduleItem}
-            />
-        }
+        const c = circulos.find(x => x.id === selectedCirculoId);
+        if (c) return <CirculoDetailScreen
+            circulo={c} user={user} prayers={prayers} onBack={clearSelection}
+            onToggleMembership={toggleCirculoMembership} onAddPost={addPost}
+            onPostReaction={async (cid, pid, e) => {
+                const updated = await api.handlePostReaction(cid, pid, user.id, e);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onAddReply={async (cid, pid, t) => {
+                const updated = await api.addReply(cid, pid, t, user);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onUpdateCirculo={async (cid, d) => {
+                const updated = await api.updateCirculo(cid, d, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onDeletePost={async (cid, pid) => {
+                const updated = await api.deletePost(cid, pid, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onPinPost={async (cid, pid) => {
+                const updated = await api.pinPost(cid, pid, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onUpdateMemberRole={async (cid, mid, isM) => {
+                const updated = await api.updateMemberRole(cid, mid, isM, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onRemoveMember={async (cid, mid) => {
+                const updated = await api.removeMember(cid, mid, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onAddScheduleItem={async (cid, i) => {
+                const updated = await api.addScheduleItem(cid, i, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onUpdateScheduleItem={async (cid, iid, i) => {
+                const updated = await api.updateScheduleItem(cid, iid, i, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+            onDeleteScheduleItem={async (cid, iid) => {
+                const updated = await api.deleteScheduleItem(cid, iid, user.id);
+                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+            }}
+        />
     }
 
     switch (currentPage) {
-      case Page.Home:
-        return <HomeScreen user={user} dailyPrayer={prayers[1]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
-      case Page.Prayers:
-        return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
-      case Page.Devotions:
-        return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
-      case Page.Circulos:
-        return <CirculoListScreen circulos={circulos} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} />;
-      case Page.Profile:
-        return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} />;
-      default:
-        return <HomeScreen user={user} dailyPrayer={prayers[1]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
+      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] || MOCK_PRAYERS[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
+      case Page.Prayers: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
+      case Page.Devotions: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
+      case Page.Circulos: return <CirculoListScreen circulos={circulos} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} />;
+      case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} />;
+      default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSetScheduledPrayer={handleSetScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} />;
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
-        <LoaderIcon className="w-12 h-12 text-gold-subtle" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthScreen onLogin={handleLogin} />;
-  }
-
-  const showNav = true; // Always show nav for logged-in users
-  const showCirculoNav = user && (currentPage === Page.Circulos || selectedCirculoId !== null);
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark"><LoaderIcon className="w-12 h-12 text-gold-subtle" /></div>;
+  if (!user) return <AuthScreen onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen text-text-light dark:text-text-dark transition-colors duration-300">
-      <Header
-        user={user} onLogout={handleLogout} darkMode={darkMode}
-        toggleDarkMode={toggleDarkMode} currentPage={currentPage}
-        setPage={handleSetPage}
-      />
-      {showCirculoNav && (
-        <CirculoNav
-          user={user}
-          circulos={circulos}
-          onSelectCirculo={handleSelectCirculo}
-          onBackToList={() => handleSetPage(Page.Circulos)}
-        />
+      <Header user={user} onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} currentPage={currentPage} setPage={handleSetPage} />
+      {user && (currentPage === Page.Circulos || selectedCirculoId !== null) && (
+        <CirculoNav user={user} circulos={circulos} onSelectCirculo={handleSelectCirculo} onBackToList={() => handleSetPage(Page.Circulos)} />
       )}
-      <main className={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 transition-all duration-300 ${ showNav ? (showCirculoNav ? 'md:pl-48' : 'md:pl-24') : ''}`}>
+      <main className={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 transition-all duration-300 ${ (currentPage === Page.Circulos || selectedCirculoId !== null) ? 'md:pl-48' : 'md:pl-24'}`}>
         {renderContent()}
       </main>
-      {showNav && <BottomNav currentPage={currentPage} setPage={handleSetPage} />}
+      <BottomNav currentPage={currentPage} setPage={handleSetPage} />
     </div>
   );
 };
