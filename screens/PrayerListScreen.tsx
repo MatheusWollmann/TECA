@@ -72,7 +72,7 @@ const PrayerListScreen: React.FC<PrayerListScreenProps> = ({ user, prayers, favo
     setIsModalOpen(false);
   }
 
-  const title = isDevotionList ? 'Catálogo de Devoções' : 'Catálogo de Orações';
+  const title = isDevotionList ? 'Devoções' : 'Orações';
   const subtitle = isDevotionList ? 'Aprofunde sua fé com orações guiadas.' : 'Encontre, reze e compartilhe sua fé.';
   const addButtonText = isDevotionList ? 'Adicionar Devoção' : 'Adicionar Oração';
 
