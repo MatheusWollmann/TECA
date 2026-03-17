@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Prayer, PrayerCategory, User } from '../types';
 import { PRAYER_CATEGORIES } from '../constants';
-import { BoldIcon, ItalicIcon, ListIcon, PilcrowIcon, BookOpenIcon } from './Icons';
+import { BoldIcon, ItalicIcon, ListIcon, BookOpenIcon } from './Icons';
 import Modal from './Modal';
 
 interface PrayerFormProps {
@@ -55,57 +55,24 @@ const SelectPrayerModal: React.FC<{
     );
 };
 
-const RichTextEditor: React.FC<{ 
+export const RichTextEditor: React.FC<{ 
     value: string; 
     onChange: (value: string) => void; 
     label: string; 
     rows?: number;
     showPrayerLink?: boolean;
     onPrayerLink: () => void;
-}> = ({ value, onChange, label, rows = 6, showPrayerLink, onPrayerLink }) => {
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    const applyStyle = useCallback((style: 'b' | 'i' | 'p' | 'ul') => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = value.substring(start, end);
-        let newText;
-
-        if (style === 'ul') {
-            const lines = selectedText.split('\n').map(line => `<li>${line}</li>`);
-            const wrappedText = `<ul>\n${lines.join('\n')}\n</ul>`;
-            newText = `${value.substring(0, start)}${wrappedText}${value.substring(end)}`;
-        } else {
-            const wrappedText = `<${style}>${selectedText}</${style}>`;
-            newText = `${value.substring(0, start)}${wrappedText}${value.substring(end)}`;
-        }
-
-        onChange(newText);
-    }, [value, onChange]);
-
+}> = ({ value, onChange, label, rows = 6 }) => {
     return (
         <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
-            <div className="rounded-md border border-gray-300 dark:border-gray-600">
-                <div className="flex items-center space-x-1 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-t-md border-b border-gray-200 dark:border-gray-600">
-                    <button type="button" onClick={() => applyStyle('b')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600"><BoldIcon className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => applyStyle('i')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600"><ItalicIcon className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => applyStyle('p')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600"><PilcrowIcon className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => applyStyle('ul')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600"><ListIcon className="w-4 h-4" /></button>
-                    {showPrayerLink && <button type="button" onClick={onPrayerLink} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600"><BookOpenIcon className="w-4 h-4" /></button>}
-                </div>
-                <textarea
-                    ref={textareaRef}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    required
-                    rows={rows}
-                    className="block w-full rounded-b-md border-0 bg-white dark:bg-gray-800 shadow-sm focus:border-gold-subtle focus:ring-gold-subtle resize-y p-2"
-                />
-            </div>
+            <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                required
+                rows={rows}
+                className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm focus:border-gold-subtle focus:ring-gold-subtle resize-y p-2 text-sm"
+            />
         </div>
     );
 };

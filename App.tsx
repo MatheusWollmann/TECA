@@ -12,6 +12,7 @@ import CirculoListScreen from './screens/CommunityScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import PrayerDetailScreen from './screens/PrayerDetailScreen';
 import DevotionDetailScreen from './screens/DevotionDetailScreen';
+import EditPrayerScreen from './screens/EditPrayerScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
 import CirculoNav from './components/CirculoNav';
 import { LoaderIcon, BookOpenIcon, UsersIcon, CalendarIcon, HeartIcon, CrossIcon, XIcon, ArrowLeftIcon } from './components/Icons';
@@ -272,6 +273,7 @@ const App: React.FC = () => {
 
   const [selectedPrayerId, setSelectedPrayerId] = useState<string | null>(null);
   const [selectedCirculoId, setSelectedCirculoId] = useState<string | null>(null);
+  const [editingPrayerId, setEditingPrayerId] = useState<string | null>(null);
 
   const [praySuccessMessage, setPraySuccessMessage] = useState('');
   const [showAuth, setShowAuth] = useState(false);
@@ -329,6 +331,7 @@ const App: React.FC = () => {
   const clearSelection = () => {
     setSelectedPrayerId(null);
     setSelectedCirculoId(null);
+    setEditingPrayerId(null);
     setPraySuccessMessage('');
   }
 
@@ -376,9 +379,9 @@ const App: React.FC = () => {
     setTimeout(() => setPraySuccessMessage(''), 3000);
   };
 
-  const handleAddScheduledPrayer = async (period: any, prayerId: string) => {
+  const handleAddScheduledPrayer = async (time: string, prayerId: string, label?: string) => {
     if (!user) return;
-    const newSched = await api.addScheduledPrayer(user.id, period, prayerId);
+    const newSched = await api.addScheduledPrayer(user.id, time, prayerId, label);
     setUser(curr => curr ? { ...curr, schedule: newSched } : null);
   };
 
@@ -421,14 +424,33 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (!user) return null;
+    if (currentPage === Page.EditPrayer && editingPrayerId) {
+      const p = prayers.find((x) => x.id === editingPrayerId);
+      if (!p) return null;
+      return (
+        <EditPrayerScreen
+          user={user}
+          prayer={p}
+          prayers={prayers}
+          onBack={() => {
+            setCurrentPage(Page.Home);
+            setSelectedPrayerId(p.id);
+          }}
+          onSave={async (id, data) => {
+            await handleUpdatePrayer(id, data);
+          }}
+        />
+      );
+    }
     if (selectedPrayerId) {
         const p = prayers.find(x => x.id === selectedPrayerId);
         if (p) {
             const DetailScreen = p.isDevotion ? DevotionDetailScreen : PrayerDetailScreen;
             return <DetailScreen 
                 prayer={p} prayers={prayers} user={user} onBack={clearSelection}
-                onPray={handlePray} onToggleFavorite={toggleFavorite} onUpdatePrayer={handleUpdatePrayer}
+                onPray={handlePray} onToggleFavorite={toggleFavorite} onUpdatePrayer={(id, data) => handleUpdatePrayer(id, data)}
                 praySuccessMessage={praySuccessMessage} onSelectPrayer={handleSelectPrayer}
+                onEdit={() => { setEditingPrayerId(p.id); setCurrentPage(Page.EditPrayer); }}
             />
         }
     }
@@ -482,7 +504,7 @@ const App: React.FC = () => {
       case Page.Prayers: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
       case Page.Devotions: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
       case Page.Circulos: return <CirculoListScreen circulos={circulos} user={user} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} onRefreshData={refreshData} />;
-      case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} />;
+      case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} onAddScheduledPrayer={handleAddScheduledPrayer} />;
       default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
     }
   };

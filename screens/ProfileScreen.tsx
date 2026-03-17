@@ -1,13 +1,15 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { User, Prayer, SpiritualLevel, DayCompletion } from '../types';
 import { SPIRITUAL_LEVELS } from '../constants';
-import { HeartIcon, CrossIcon, CalendarIcon } from '../components/Icons';
+import { HeartIcon, CrossIcon, CalendarIcon, Trash2Icon, PlusCircleIcon } from '../components/Icons';
+import Modal from '../components/Modal';
 
 interface ProfileScreenProps {
   user: User;
   prayers: Prayer[];
   onSelectPrayer: (prayerId: string) => void;
+  onAddScheduledPrayer: (time: string, prayerId: string, label?: string) => void;
 }
 
 const CalendarDay: React.FC<{ date: Date; completion?: DayCompletion }> = ({ date, completion }) => {
@@ -43,7 +45,7 @@ const CalendarDay: React.FC<{ date: Date; completion?: DayCompletion }> = ({ dat
     );
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, prayers, onSelectPrayer }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, prayers, onSelectPrayer, onAddScheduledPrayer }) => {
     const favoritePrayers = prayers.filter(p => user.favoritePrayerIds.includes(p.id));
     
     const levelInfo = SPIRITUAL_LEVELS[user.level];
@@ -68,8 +70,79 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, prayers, onSelectPr
     const days = getDaysInMonth();
     const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date());
 
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [scheduleTime, setScheduleTime] = useState<string>('');
+    const [scheduleLabel, setScheduleLabel] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredPrayers = prayers.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const handleSelectPrayerForSchedule = (prayerId: string) => {
+        const time = scheduleTime || '08:00';
+        onAddScheduledPrayer(time, prayerId, scheduleLabel || undefined);
+        setIsScheduleModalOpen(false);
+        setScheduleTime('');
+        setScheduleLabel('');
+        setSearchTerm('');
+    };
+
     return (
         <div className="space-y-8 pb-10">
+            <Modal
+              isOpen={isScheduleModalOpen}
+              onClose={() => setIsScheduleModalOpen(false)}
+              title="Adicionar horário de oração"
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                      Horário
+                    </label>
+                    <input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                      Rótulo (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={scheduleLabel}
+                      onChange={(e) => setScheduleLabel(e.target.value)}
+                      placeholder="Ex.: Depois do trabalho"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar oração..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none"
+                />
+                <div className="max-h-80 overflow-y-auto pr-2 space-y-1">
+                  {filteredPrayers.map(prayer => (
+                    <button 
+                      key={prayer.id}
+                      onClick={() => handleSelectPrayerForSchedule(prayer.id)}
+                      className="w-full text-left p-4 rounded-xl hover:bg-gold-subtle/10 transition-colors flex items-center justify-between group"
+                    >
+                      <div>
+                        <p className="font-bold text-gray-800 dark:text-gray-100">{prayer.title}</p>
+                        <p className="text-xs text-gray-500">{prayer.category}</p>
+                      </div>
+                      <PlusCircleIcon className="w-5 h-5 text-gray-300 group-hover:text-gold-subtle" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Modal>
             <div className="flex flex-col items-center pt-4">
                 <div className="relative group">
                     <img src={user.avatarUrl} alt={user.name} className="w-28 h-28 rounded-full border-4 border-gold-subtle shadow-2xl group-hover:scale-105 transition-transform" />
@@ -138,6 +211,63 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, prayers, onSelectPr
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-lg bg-gold-subtle"></div> Fiel</div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-lg bg-gold-subtle/20 border border-gold-subtle/30"></div> Em jornada</div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-lg bg-gray-100 dark:bg-gray-800"></div> Vazio</div>
+                </div>
+            </div>
+
+            {/* Gerenciamento de horários de oração */}
+            <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                            Cronograma pessoal
+                        </p>
+                        <h2 className="text-lg font-black text-gray-900 dark:text-white">
+                            Horários de oração
+                        </h2>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gold-subtle text-white text-xs font-bold uppercase tracking-widest shadow-sm hover:opacity-90 transition-colors"
+                    >
+                        <PlusCircleIcon className="w-4 h-4" />
+                        Adicionar
+                    </button>
+                </div>
+                <div className="space-y-2">
+                    {user.schedule && user.schedule.length > 0 ? (
+                        [...user.schedule]
+                            .slice()
+                            .sort((a, b) => a.time.localeCompare(b.time))
+                            .map(item => {
+                                const p = prayers.find(x => x.id === item.prayerId);
+                                if (!p) return null;
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                                                {p.title}
+                                            </span>
+                                            {item.label && (
+                                                <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                                    {item.label}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-[11px] font-mono text-gray-400">
+                                            {item.time || '—'}
+                                        </span>
+                                    </div>
+                                );
+                            })
+                    ) : (
+                        <div className="py-4 text-[11px] font-medium text-gray-400 italic text-center">
+                            Nenhum horário configurado ainda. Use o botão &quot;Adicionar&quot; para criar o seu primeiro.
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -1,8 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { User, Prayer, Circulo, Post } from '../types';
-import { HeartIcon, CrossIcon, UsersIcon, CalendarIcon, PlusCircleIcon, Trash2Icon, MessageSquareIcon, SmileIcon } from '../components/Icons';
-import Modal from '../components/Modal';
+import { HeartIcon, CrossIcon, UsersIcon, CalendarIcon, Trash2Icon, MessageSquareIcon } from '../components/Icons';
 
 interface HomeScreenProps {
   user: User;
@@ -11,7 +10,7 @@ interface HomeScreenProps {
   prayers: Prayer[];
   onSelectPrayer: (prayerId: string) => void;
   onSelectCirculo: (circuloId: string) => void;
-  onAddScheduledPrayer: (period: 'Manhã' | 'Tarde' | 'Noite', prayerId: string) => void;
+  onAddScheduledPrayer: (time: string, prayerId: string, label?: string) => void;
   onRemoveScheduledPrayer: (scheduleItemId: string) => void;
   onToggleScheduledPrayer: (scheduleItemId: string) => void;
   onPostReaction: (circuloId: string, postId: string, emoji: string) => void;
@@ -28,10 +27,19 @@ const SocialPostCard: React.FC<{
     const userReaction = post.reactions.find(r => r.userId === currentUserId);
     
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all">
+        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-3xl p-5 shadow-md shadow-slate-900/5 border border-gray-100 dark:border-gray-800 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <img src={post.authorAvatarUrl} alt={post.authorName} className="w-10 h-10 rounded-full object-cover border-2 border-gold-subtle/20" />
+                    <div className="relative">
+                      <img
+                        src={post.authorAvatarUrl}
+                        alt={post.authorName}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-gold-subtle/40 shadow-sm"
+                      />
+                      {userReaction?.emoji === '🙏' && (
+                        <span className="absolute -bottom-1 -right-1 text-xs">🙏</span>
+                      )}
+                    </div>
                     <div>
                         <p className="font-bold text-gray-900 dark:text-white text-sm">{post.authorName}</p>
                         <button 
@@ -49,17 +57,48 @@ const SocialPostCard: React.FC<{
                 {post.text}
             </p>
 
-            <div className="flex items-center gap-4 pt-3 border-t border-gray-50 dark:border-gray-700/50">
+            {post.replies.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-50 dark:border-gray-800/70">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.16em] mb-2">
+                  {post.replies.length} {post.replies.length === 1 ? 'resposta' : 'respostas'}
+                </p>
+                <div className="flex gap-3">
+                  <img
+                    src={post.replies[0].authorAvatarUrl}
+                    alt={post.replies[0].authorName}
+                    className="w-7 h-7 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                  />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      {post.replies[0].authorName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap">
+                      {post.replies[0].text}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-4 pt-3 border-t border-gray-50 dark:border-gray-800/70 mt-3">
                 <button 
-                    onClick={() => onReaction(userReaction?.emoji === '🙏' ? '' : '🙏')}
-                    className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${userReaction?.emoji === '🙏' ? 'text-gold-subtle' : 'text-gray-400 hover:text-gold-subtle'}`}
+                    onClick={() => onReaction('🙏')}
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${
+                        userReaction?.emoji === '🙏'
+                          ? 'bg-gold-subtle/10 text-gold-subtle'
+                          : 'text-gray-400 hover:text-gold-subtle hover:bg-gold-subtle/5'
+                    }`}
                 >
                     <span className="text-base">🙏</span> 
                     {post.reactions.length > 0 ? post.reactions.length : 'Interceder'}
                 </button>
-                <button className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                    <MessageSquareIcon className="w-4 h-4" />
-                    {post.replies.length > 0 ? `${post.replies.length} Respostas` : 'Responder'}
+                <button
+                  type="button"
+                  onClick={() => onSelectCirculo(circuloId)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  <MessageSquareIcon className="w-4 h-4" />
+                  {post.replies.length > 0 ? `${post.replies.length} respostas` : 'Seja o primeiro a responder'}
                 </button>
             </div>
         </div>
@@ -70,9 +109,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     user, dailyPrayer, circulos, prayers, 
     onSelectPrayer, onSelectCirculo, onAddScheduledPrayer, onRemoveScheduledPrayer, onToggleScheduledPrayer, onPostReaction
 }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [schedulingPeriod, setSchedulingPeriod] = useState<'Manhã' | 'Tarde' | 'Noite' | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Home agora é apenas visualizadora do cronograma; criação/edição de horários acontece no Perfil.
+  const [celebratingId, setCelebratingId] = useState<string | null>(null);
+  const [showDayCelebration, setShowDayCelebration] = useState(false);
 
   // Lógica para compilar o feed social apenas dos círculos que o usuário participa
   const socialFeed = useMemo(() => {
@@ -89,69 +128,60 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return allPosts.sort((a, b) => b.post.id.localeCompare(a.post.id));
   }, [circulos, user.joinedCirculoIds]);
 
-  const openScheduleModal = (period: 'Manhã' | 'Tarde' | 'Noite') => {
-    setSchedulingPeriod(period);
+  const totalSchedule = user.schedule?.length || 0;
+  const completedSchedule = user.schedule?.filter(s => s.completed).length || 0;
+  const dayProgressPct = totalSchedule > 0 ? Math.round((completedSchedule / totalSchedule) * 100) : 0;
+
+  useEffect(() => {
+    if (totalSchedule > 0 && dayProgressPct === 100) {
+      setShowDayCelebration(true);
+      const t = setTimeout(() => setShowDayCelebration(false), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [dayProgressPct, totalSchedule]);
+
+  const openScheduleModal = () => {
+    setScheduleTime('');
+    setScheduleLabel('');
     setSearchTerm('');
     setIsModalOpen(true);
   };
 
-  const handleSelectPrayerForSchedule = (prayerId: string) => {
-    if (schedulingPeriod) {
-      onAddScheduledPrayer(schedulingPeriod, prayerId);
-    }
-    setIsModalOpen(false);
-    setSchedulingPeriod(null);
-  };
-
-  const filteredPrayers = prayers.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
-
   return (
-    <div className="space-y-8 pb-10">
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={schedulingPeriod ? `Agendar para a ${schedulingPeriod.toLowerCase()}` : 'Selecionar Oração'}
-      >
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Buscar oração..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none"
-          />
-          <div className="max-h-80 overflow-y-auto pr-2 space-y-1">
-            {filteredPrayers.map(prayer => (
-              <button 
-                key={prayer.id}
-                onClick={() => handleSelectPrayerForSchedule(prayer.id)} 
-                className="w-full text-left p-4 rounded-xl hover:bg-gold-subtle/10 transition-colors flex items-center justify-between group"
-              >
-                <div>
-                  <p className="font-bold text-gray-800 dark:text-gray-100">{prayer.title}</p>
-                  <p className="text-xs text-gray-500">{prayer.category}</p>
-                </div>
-                <PlusCircleIcon className="w-5 h-5 text-gray-300 group-hover:text-gold-subtle" />
-              </button>
-            ))}
+    <div className="space-y-8 pb-10 relative">
+      {showDayCelebration && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="relative z-10 flex flex-col items-center gap-3 animate-fade-up">
+            <div className="text-5xl">🚀</div>
+            <p className="text-xs font-black text-yellow-200 uppercase tracking-[0.3em]">
+              Dia completo
+            </p>
+            <p className="text-lg font-bold text-white text-center max-w-xs">
+              Todas as orações de hoje concluídas. Deo gratias!
+            </p>
           </div>
         </div>
-      </Modal>
-
-      {/* Greeting Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Salve, {user.name.split(' ')[0]}!</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-medium">Sua comunidade de fé está unida em oração.</p>
+      )}
+      {/* Greeting Header + stats */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.25em]">Bem-vindo de volta</p>
+          <h1 className="text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+            Salve, {user.name.split(' ')[0]}!
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 font-medium">
+            Sua comunidade de fé está unida em oração.
+          </p>
         </div>
-        <div className="flex bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-sm items-center gap-3">
+        <div className="flex bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl px-3 py-2 rounded-2xl shadow-lg shadow-slate-900/5 border border-gray-100 dark:border-gray-800 gap-4">
            <div className="px-4 py-1 text-center">
-              <p className="text-[10px] font-black uppercase text-gray-400">Streak</p>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.18em]">Streak</p>
               <p className="font-black text-gold-subtle text-lg">🔥 {user.streak}</p>
            </div>
-           <div className="h-8 w-px bg-gray-100 dark:bg-gray-700"></div>
+           <div className="h-10 w-px bg-gray-100 dark:bg-gray-800"></div>
            <div className="px-4 py-1 text-center">
-              <p className="text-[10px] font-black uppercase text-gray-400">Graças</p>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.18em]">Graças</p>
               <p className="font-black text-gray-800 dark:text-white text-lg">{user.graces}</p>
            </div>
         </div>
@@ -162,19 +192,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="lg:col-span-2 space-y-8">
           
           {/* Daily Highlight */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-gold-subtle to-yellow-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-gold-subtle/20">
+          <div className="relative overflow-hidden bg-gradient-to-br from-gold-subtle to-yellow-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-gold-subtle/25">
             <div className="relative z-10">
               <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Misterium Fidei</span>
               <h2 className="text-3xl font-black mt-4 mb-2">{dailyPrayer.title}</h2>
               <div className="text-white/90 text-lg leading-relaxed line-clamp-2 mb-6" dangerouslySetInnerHTML={{ __html: dailyPrayer.text }}></div>
-              <button onClick={() => onSelectPrayer(dailyPrayer.id)} className="bg-white text-gold-subtle font-black px-8 py-3 rounded-2xl hover:scale-105 transition-transform shadow-lg">REZAR AGORA</button>
+              <button
+                onClick={() => onSelectPrayer(dailyPrayer.id)}
+                className="bg-white text-gold-subtle font-black px-8 py-3 rounded-2xl hover:scale-105 active:scale-95 transition-transform shadow-lg"
+              >
+                REZAR AGORA
+              </button>
             </div>
             <CrossIcon className="absolute -bottom-10 -right-10 w-64 h-64 text-white/10 rotate-12" />
           </div>
 
           {/* Social Timeline */}
           <div className="space-y-6">
-            <h2 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter ml-2">Partilhas Recentes</h2>
+            <h2 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter ml-1">
+              Feed
+            </h2>
             
             {socialFeed.length > 0 ? (
                 <div className="space-y-4">
@@ -191,10 +228,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     ))}
                 </div>
             ) : (
-                <div className="bg-white dark:bg-gray-800 rounded-3xl p-10 text-center border-2 border-dashed border-gray-100 dark:border-gray-700">
-                    <UsersIcon className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
-                    <p className="text-gray-400 font-bold text-sm">Entre em círculos para ver as partilhas dos seus irmãos na fé.</p>
-                </div>
+              <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl p-10 text-center border border-dashed border-gray-100 dark:border-gray-800 shadow-sm">
+                <UsersIcon className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
+                <p className="text-gray-400 font-bold text-sm">
+                  Entre em círculos para ver as partilhas dos seus irmãos na fé.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -203,73 +242,106 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="space-y-8 sticky top-24">
           
           {/* Spiritual Checklist */}
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-black text-gray-800 dark:text-white mb-6 flex items-center gap-3 uppercase tracking-widest">
-              <CalendarIcon className="w-5 h-5 text-gold-subtle" /> Cronograma
+          <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-lg shadow-slate-900/5 border border-gray-100 dark:border-gray-800">
+            <h2 className="text-sm font-black text-gray-800 dark:text-white mb-3 flex items-center gap-3 uppercase tracking-widest">
+              <CalendarIcon className="w-5 h-5 text-gold-subtle" /> Cronograma diário
             </h2>
-            <div className="space-y-6">
-              {(['Manhã', 'Tarde', 'Noite'] as const).map(period => {
-                const periodItems = (user.schedule || []).filter(s => s.time === period);
-                
-                return (
-                  <div key={period} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{period}</span>
-                      <button 
-                        onClick={() => openScheduleModal(period)} 
-                        className="text-[10px] font-black text-gold-subtle hover:underline"
-                      >
-                        + ADD
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                        {periodItems.length > 0 ? periodItems.map(item => {
-                            const p = prayers.find(x => x.id === item.prayerId);
-                            if (!p) return null;
-                            return (
-                                <div key={item.id} className="flex items-center group gap-2">
-                                    <button 
-                                        onClick={() => onToggleScheduledPrayer(item.id)}
-                                        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                                            item.completed 
-                                            ? 'bg-gold-subtle border-gold-subtle text-white' 
-                                            : 'border-gray-200 dark:border-gray-600 hover:border-gold-subtle'
-                                        }`}
-                                    >
-                                        {item.completed && <CheckIcon className="w-4 h-4 stroke-[3]" />}
-                                    </button>
-                                    <div 
-                                        onClick={() => onSelectPrayer(p.id)}
-                                        className={`flex-grow p-3 rounded-xl cursor-pointer border transition-all ${
-                                            item.completed 
-                                            ? 'bg-gray-50 dark:bg-gray-700/30 border-transparent opacity-60' 
-                                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gold-subtle/20'
-                                        }`}
-                                    >
-                                        <p className={`text-xs font-bold ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}>
-                                            {p.title}
-                                        </p>
-                                    </div>
-                                    <button 
-                                        onClick={() => onRemoveScheduledPrayer(item.id)}
-                                        className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-red-500 transition-all"
-                                    >
-                                        <Trash2Icon className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            );
-                        }) : (
-                            <div className="py-2 text-[10px] font-bold text-gray-300 italic">Livre.</div>
-                        )}
-                    </div>
+            {/* Barra de progresso do dia */}
+            {totalSchedule > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                  <span>{completedSchedule}/{totalSchedule} concluídas hoje</span>
+                  <span>{dayProgressPct}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-gold-subtle to-yellow-500 transition-all duration-500"
+                    style={{ width: `${dayProgressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.18em]">
+                  Hoje
+                </span>
+              </div>
+              <div className="space-y-2">
+                {user.schedule && user.schedule.length > 0 ? (
+                        [...user.schedule]
+                    .slice()
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map(item => {
+                      const p = prayers.find(x => x.id === item.prayerId);
+                      if (!p) return null;
+                      return (
+                        <div key={item.id} className="relative flex items-center group gap-2">
+                          <button 
+                            onClick={() => {
+                              if (!item.completed) {
+                                setCelebratingId(item.id);
+                                setTimeout(() => setCelebratingId(current => current === item.id ? null : current), 1200);
+                              }
+                              onToggleScheduledPrayer(item.id);
+                            }}
+                            className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                                item.completed 
+                                ? 'bg-gold-subtle border-gold-subtle text-white' 
+                                : 'border-gray-200 dark:border-gray-600 hover:border-gold-subtle'
+                            }`}
+                          >
+                            {item.completed && <CheckIcon className="w-4 h-4 stroke-[3]" />}
+                          </button>
+                          <div 
+                            onClick={() => onSelectPrayer(p.id)}
+                            className={`flex-grow p-3 rounded-xl cursor-pointer border transition-all ${
+                                item.completed 
+                                ? 'bg-gray-50 dark:bg-gray-700/30 border-transparent opacity-60' 
+                                : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gold-subtle/20'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className={`text-xs font-bold ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}>
+                                  {p.title}
+                                </p>
+                                {item.label && (
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                    {item.label}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-[11px] font-mono text-gray-400">
+                                {item.time || '—'}
+                              </span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => onRemoveScheduledPrayer(item.id)}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-red-500 transition-all"
+                          >
+                            <Trash2Icon className="w-4 h-4" />
+                          </button>
+                          {celebratingId === item.id && (
+                            <div className="pointer-events-none absolute -top-4 right-6 text-lg animate-bounce">
+                              🎉
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="py-2 text-[11px] font-medium text-gray-400 italic">
+                    Nenhum horário de oração para hoje. Comece adicionando um acima.
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           </div>
 
           {/* Quick Circle List */}
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-lg shadow-slate-900/5 border border-gray-100 dark:border-gray-800">
             <h2 className="text-sm font-black text-gray-800 dark:text-white mb-6 flex items-center gap-3 uppercase tracking-widest">
               <UsersIcon className="w-5 h-5 text-gold-subtle" /> Seus Círculos
             </h2>

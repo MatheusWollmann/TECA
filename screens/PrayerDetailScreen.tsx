@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { Prayer, User } from '../types';
 import { ArrowLeftIcon, BookmarkIcon, ShareIcon, EditIcon, SunIcon } from '../components/Icons';
-import Modal from '../components/Modal';
-import PrayerForm from '../components/PrayerForm';
 
 interface PrayerDetailScreenProps {
   prayer: Prayer;
@@ -15,12 +13,12 @@ interface PrayerDetailScreenProps {
   onUpdatePrayer: (prayerId: string, prayerData: Partial<Prayer>) => void;
   praySuccessMessage: string;
   onSelectPrayer: (prayerId:string) => void;
+  onEdit: () => void;
 }
 
 const PrayerDetailScreen: React.FC<PrayerDetailScreenProps> = ({ 
-    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage, onSelectPrayer
+    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage, onSelectPrayer, onEdit
 }) => {
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const isFavorite = user.favoritePrayerIds.includes(prayer.id);
   const parentPrayer = prayer.parentPrayerId ? prayers.find(p => p.id === prayer.parentPrayerId) : null;
@@ -38,10 +36,6 @@ const PrayerDetailScreen: React.FC<PrayerDetailScreenProps> = ({
 
   return (
     <div className={`animate-fade-in ${focusMode ? 'max-w-2xl mx-auto' : ''}`}>
-        <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={`Editar Oração: ${prayer.title}`}>
-            <PrayerForm user={user} prayers={prayers} initialData={prayer} onSubmit={(d) => { onUpdatePrayer(prayer.id, d); setIsEditModalOpen(false); }} onClose={() => setIsEditModalOpen(false)} />
-        </Modal>
-
       {!focusMode && (
         <div className="flex items-center mb-4">
             <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
@@ -103,7 +97,7 @@ const PrayerDetailScreen: React.FC<PrayerDetailScreenProps> = ({
         <div className="flex gap-2">
             {!focusMode && (
               <>
-                <button onClick={() => setIsEditModalOpen(true)} className="bg-white dark:bg-gray-700 p-4 rounded-2xl shadow-lg"><EditIcon className="w-6 h-6 text-gray-500 dark:text-gray-300" /></button>
+                <button onClick={onEdit} className="bg-white dark:bg-gray-700 p-4 rounded-2xl shadow-lg"><EditIcon className="w-6 h-6 text-gray-500 dark:text-gray-300" /></button>
                 <button onClick={handleShare} className="bg-white dark:bg-gray-700 p-4 rounded-2xl shadow-lg"><ShareIcon className="w-6 h-6 text-gray-500 dark:text-gray-300" /></button>
                 <button onClick={() => onToggleFavorite(prayer.id)} className="bg-white dark:bg-gray-700 p-4 rounded-2xl shadow-lg">
                     <BookmarkIcon className={`w-6 h-6 transition-colors ${isFavorite ? 'fill-gold-subtle text-gold-subtle' : 'text-gray-400 dark:text-gray-300'}`} />

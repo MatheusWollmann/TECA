@@ -80,8 +80,11 @@ export interface Circulo {
 
 export interface PrayerSchedule {
   id: string;
-  time: 'Manhã' | 'Tarde' | 'Noite';
+  /** Horário no formato HH:mm */
+  time: string;
   prayerId: string;
+  /** Rótulo opcional definido pelo usuário (ex.: "Antes do trabalho") */
+  label?: string;
   completed: boolean;
 }
 
@@ -90,7 +93,8 @@ export enum Page {
   Prayers = 'PRAYERS',
   Devotions = 'DEVOTIONS',
   Circulos = 'CIRCULOS',
-  Profile = 'PROFILE'
+  Profile = 'PROFILE',
+  EditPrayer = 'EDIT_PRAYER'
 }
 
 export enum SpiritualLevel {

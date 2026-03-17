@@ -2,8 +2,6 @@
 import React, { useState, useMemo } from 'react';
 import { Prayer, User } from '../types';
 import { ArrowLeftIcon, BookmarkIcon, HeartIcon, ShareIcon, EditIcon, XIcon } from '../components/Icons';
-import Modal from '../components/Modal';
-import PrayerForm from '../components/PrayerForm';
 
 interface DevotionDetailScreenProps {
   prayer: Prayer;
@@ -15,6 +13,7 @@ interface DevotionDetailScreenProps {
   onUpdatePrayer: (prayerId: string, prayerData: Partial<Prayer>) => void;
   praySuccessMessage: string;
   onSelectPrayer: (prayerId:string) => void;
+  onEdit: () => void;
 }
 
 const DevotionRenderer: React.FC<{
@@ -71,9 +70,8 @@ const DevotionRenderer: React.FC<{
 
 
 const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({ 
-    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage, onSelectPrayer
+    prayer, prayers, user, onBack, onPray, onToggleFavorite, onUpdatePrayer, praySuccessMessage, onSelectPrayer, onEdit
 }) => {
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const isFavorite = user.favoritePrayerIds.includes(prayer.id);
   const parentPrayer = prayer.parentPrayerId ? prayers.find(p => p.id === prayer.parentPrayerId) : null;
 
@@ -95,23 +93,8 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
     }
   };
 
-  const handleUpdatePrayer = (prayerData: Partial<Prayer>) => {
-    onUpdatePrayer(prayer.id, prayerData);
-    setIsEditModalOpen(false);
-  };
-
   return (
     <div className="animate-fade-in">
-        <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={`Editar Devoção: ${prayer.title}`}>
-            <PrayerForm
-                user={user}
-                prayers={prayers}
-                initialData={prayer}
-                onSubmit={handleUpdatePrayer}
-                onClose={() => setIsEditModalOpen(false)}
-                isDevotionForm={true}
-            />
-        </Modal>
       <div className="flex items-center mb-4">
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-label="Voltar">
           <ArrowLeftIcon className="w-6 h-6" />
@@ -168,7 +151,7 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
         </button>
         <div className="flex gap-2 sm:gap-3">
             <button
-                onClick={() => setIsEditModalOpen(true)}
+                onClick={onEdit}
                 className="bg-white dark:bg-gray-700 p-3 rounded-xl shadow-lg"
                 aria-label="Editar Devoção"
                 >

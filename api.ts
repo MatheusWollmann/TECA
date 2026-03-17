@@ -133,10 +133,10 @@ export const api = {
   },
 
   // --- CRONOGRAMA & HISTÓRICO ---
-  addScheduledPrayer: async (userId: string, period: 'Manhã' | 'Tarde' | 'Noite', prayerId: string) => {
+  addScheduledPrayer: async (userId: string, time: string, prayerId: string, label?: string) => {
     const user = db.users.find((u: any) => u.id === userId);
     if (!user) return [];
-    user.schedule.push({ id: `s${Date.now()}`, time: period, prayerId, completed: false });
+    user.schedule.push({ id: `s${Date.now()}`, time, prayerId, label, completed: false });
     saveDB();
     return [...user.schedule];
   },
@@ -161,14 +161,20 @@ export const api = {
         if (!user.history) user.history = {};
         if (!user.history[today]) user.history[today] = { morning: false, afternoon: false, night: false };
         
-        const checkPeriod = (p: 'Manhã' | 'Tarde' | 'Noite') => {
-            const periodPrayers = user.schedule.filter((s:any) => s.time === p);
-            return periodPrayers.length > 0 && periodPrayers.every((s:any) => s.completed);
-        }
+        // Para manter o streak compatível com o novo modelo livre de horários,
+        // mapeamos os horários concluídos para faixas do dia.
+        const parseHour = (t: string) => {
+          const [h] = String(t || '').split(':').map(Number);
+          return isNaN(h) ? 0 : h;
+        };
+        const inMorning = (h: number) => h >= 5 && h < 12;   // 05h-11h
+        const inAfternoon = (h: number) => h >= 12 && h < 18; // 12h-17h
+        const inNight = (h: number) => h >= 18 || h < 5;      // 18h-04h
 
-        user.history[today].morning = checkPeriod('Manhã');
-        user.history[today].afternoon = checkPeriod('Tarde');
-        user.history[today].night = checkPeriod('Noite');
+        const completedToday = (user.schedule || []).filter((s: any) => s.completed);
+        user.history[today].morning = completedToday.some((s: any) => inMorning(parseHour(s.time)));
+        user.history[today].afternoon = completedToday.some((s: any) => inAfternoon(parseHour(s.time)));
+        user.history[today].night = completedToday.some((s: any) => inNight(parseHour(s.time)));
         
         user.streak = calculateCurrentStreak(user.history);
         saveDB();
