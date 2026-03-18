@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, Page } from '../types';
-import { SunIcon, MoonIcon, UserIcon, LogOutIcon } from './Icons';
+import { SunIcon, MoonIcon, UserIcon, LogOutIcon, BookOpenIcon } from './Icons';
 
 interface HeaderProps {
   user: User | null;
@@ -74,6 +74,15 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, darkMode, toggleDarkMod
                       <UserIcon className="w-4 h-4 mr-2" />
                       Perfil
                     </button>
+                    {user.role === 'EDITOR' && (
+                      <button
+                        onClick={() => { setPage(Page.EditorReview); setDropdownOpen(false); }}
+                        className="w-full text-left flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors"
+                      >
+                        <BookOpenIcon className="w-4 h-4 mr-2" />
+                        Revisar sugestões
+                      </button>
+                    )}
                     <div className="my-1 h-px bg-gray-100 dark:bg-gray-800" />
                     <button
                       onClick={() => { onLogout(); setDropdownOpen(false); }}

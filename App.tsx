@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Prayer, Page, Circulo, UserRole, PrayerCategory } from './types';
+import { User, Prayer, Page, Circulo, UserRole, PrayerCategory, PrayerEditSuggestion } from './types';
 import { api } from './api';
 import { MOCK_PRAYERS } from './constants';
 import Header from './components/Header';
@@ -13,6 +13,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import PrayerDetailScreen from './screens/PrayerDetailScreen';
 import DevotionDetailScreen from './screens/DevotionDetailScreen';
 import EditPrayerScreen from './screens/EditPrayerScreen';
+import EditorReviewScreen from './screens/EditorReviewScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
 import CirculoNav from './components/CirculoNav';
 import { LoaderIcon, BookOpenIcon, UsersIcon, CalendarIcon, HeartIcon, CrossIcon, XIcon, ArrowLeftIcon } from './components/Icons';
@@ -270,6 +271,7 @@ const App: React.FC = () => {
   
   const [prayers, setPrayers] = useState<Prayer[]>([]);
   const [circulos, setCirculos] = useState<Circulo[]>([]);
+  const [editSuggestions, setEditSuggestions] = useState<PrayerEditSuggestion[]>([]);
 
   const [selectedPrayerId, setSelectedPrayerId] = useState<string | null>(null);
   const [selectedCirculoId, setSelectedCirculoId] = useState<string | null>(null);
@@ -290,10 +292,11 @@ const App: React.FC = () => {
     try {
         const loggedInUser = await api.login();
         if (loggedInUser) {
-           const { user: userData, prayers: prayerData, circulos: circuloData } = await api.getData(loggedInUser.id);
+           const { user: userData, prayers: prayerData, circulos: circuloData, editSuggestions: suggestionData } = await api.getData(loggedInUser.id);
            setUser(userData);
            setPrayers(prayerData);
            setCirculos(circuloData);
+           setEditSuggestions(suggestionData || []);
         }
     } catch (e) {
         console.error("Auth/Data Error", e);
@@ -324,6 +327,7 @@ const App: React.FC = () => {
     setUser(null);
     setPrayers([]);
     setCirculos([]);
+    setEditSuggestions([]);
   };
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
@@ -359,7 +363,31 @@ const App: React.FC = () => {
         setPrayers(curr => curr.map(p => p.id === prayerId ? updated : p));
         setSelectedPrayerId(null);
         setTimeout(() => setSelectedPrayerId(updated.id), 0);
-    } else alert("Sugestão de edição enviada!");
+    } else alert("Apenas Editors podem salvar direto. Envie uma sugestão de edição.");
+  };
+
+  const handleSuggestPrayerEdit = async (prayerId: string, proposed: Partial<Prayer>, reason?: string) => {
+    if (!user) return;
+    const suggestion = await api.submitPrayerEditSuggestion(prayerId, proposed, user, reason);
+    setEditSuggestions((curr) => [suggestion, ...curr]);
+    alert('Sugestão enviada! Um Editor vai revisar em breve.');
+  };
+
+  const handleApproveSuggestion = async (suggestionId: string) => {
+    if (!user) return;
+    const result = await api.approveSuggestion(suggestionId, user);
+    if (!result) return;
+    setEditSuggestions((curr) => curr.map((s) => (s.id === suggestionId ? result.suggestion : s)));
+    if (result.prayer) {
+      setPrayers((curr) => curr.map((p) => (p.id === result.prayer!.id ? result.prayer! : p)));
+    }
+  };
+
+  const handleRejectSuggestion = async (suggestionId: string, note?: string) => {
+    if (!user) return;
+    const updated = await api.rejectSuggestion(suggestionId, user, note);
+    if (!updated) return;
+    setEditSuggestions((curr) => curr.map((s) => (s.id === suggestionId ? updated : s)));
   };
 
   const handleSelectPrayer = (prayerId: string) => {
@@ -439,6 +467,22 @@ const App: React.FC = () => {
           onSave={async (id, data) => {
             await handleUpdatePrayer(id, data);
           }}
+          onSuggest={async (id, proposed, reason) => {
+            await handleSuggestPrayerEdit(id, proposed, reason);
+          }}
+        />
+      );
+    }
+    if (currentPage === Page.EditorReview) {
+      const pending = editSuggestions.filter((s) => s.status === 'PENDING');
+      return (
+        <EditorReviewScreen
+          user={user}
+          prayers={prayers}
+          suggestions={pending}
+          onBack={() => setCurrentPage(Page.Home)}
+          onApprove={handleApproveSuggestion}
+          onReject={handleRejectSuggestion}
         />
       );
     }
@@ -459,6 +503,7 @@ const App: React.FC = () => {
         if (c) return <CirculoDetailScreen
             circulo={c} user={user} prayers={prayers} onBack={clearSelection}
             onToggleMembership={toggleCirculoMembership} onAddPost={addPost}
+            onSelectPrayer={handleSelectPrayer}
             onPostReaction={handlePostReaction}
             onAddReply={async (cid, pid, t) => {
                 const updated = await api.addReply(cid, pid, t, user);

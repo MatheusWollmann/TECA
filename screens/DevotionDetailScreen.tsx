@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Prayer, User } from '../types';
 import { ArrowLeftIcon, BookmarkIcon, HeartIcon, ShareIcon, EditIcon, XIcon } from '../components/Icons';
+import { RichContentRenderer } from '../components/rich/RichContentRenderer';
 
 interface DevotionDetailScreenProps {
   prayer: Prayer;
@@ -120,7 +121,15 @@ const DevotionDetailScreen: React.FC<DevotionDetailScreenProps> = ({
                 Parte de: <button onClick={() => onSelectPrayer(parentPrayer.id)} className="font-semibold text-gold-subtle hover:underline">{parentPrayer.title}</button>
               </p>
             )}
-            <DevotionRenderer text={prayer.text} prayers={prayers} />
+            {prayer.content?.type === 'tiptap' ? (
+              <RichContentRenderer
+                content={prayer.content}
+                prayers={prayers}
+                onOpenPrayer={onSelectPrayer}
+              />
+            ) : (
+              <DevotionRenderer text={prayer.text} prayers={prayers} />
+            )}
           </div>
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 text-sm text-gray-500 dark:text-gray-400">

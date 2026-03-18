@@ -5,7 +5,7 @@ import {
   MOCK_CIRCULOS,
   SPIRITUAL_LEVELS,
 } from './constants';
-import { User, Prayer, Circulo, Post, SpiritualLevel, UserRole, CirculoScheduleItem, PrayerSchedule, DayCompletion } from './types';
+import { User, Prayer, Circulo, Post, SpiritualLevel, UserRole, CirculoScheduleItem, PrayerSchedule, DayCompletion, PrayerEditSuggestion, CirculoDevocionary } from './types';
 
 const DB_KEY = 'teca_db_beta';
 
@@ -22,6 +22,7 @@ const getInitialDB = () => {
     users: [JSON.parse(JSON.stringify(MOCK_USER))],
     prayers: JSON.parse(JSON.stringify(MOCK_PRAYERS)),
     circulos: JSON.parse(JSON.stringify(MOCK_CIRCULOS)),
+    editSuggestions: [] as PrayerEditSuggestion[],
   };
 };
 
@@ -109,7 +110,65 @@ export const api = {
       user: user ? { ...user } : null,
       prayers: [...db.prayers],
       circulos: [...db.circulos],
+      editSuggestions: [...(db.editSuggestions || [])],
     };
+  },
+
+  // --- COLABORAÇÃO: SUGESTÕES DE EDIÇÃO ---
+  submitPrayerEditSuggestion: async (prayerId: string, proposed: Partial<Prayer>, user: User, reason?: string) => {
+    await delay(SIMULATED_DELAY);
+    const suggestion: PrayerEditSuggestion = {
+      id: `sug${Date.now()}`,
+      prayerId,
+      authorId: user.id,
+      authorName: user.name,
+      createdAt: 'Agora',
+      status: 'PENDING',
+      proposed,
+      reason: reason?.trim() || undefined,
+    };
+    if (!db.editSuggestions) db.editSuggestions = [];
+    db.editSuggestions.unshift(suggestion);
+    saveDB();
+    return { ...suggestion };
+  },
+
+  listPendingSuggestions: async () => {
+    await delay(SIMULATED_DELAY);
+    return (db.editSuggestions || []).filter((s: PrayerEditSuggestion) => s.status === 'PENDING').map((s: PrayerEditSuggestion) => ({ ...s }));
+  },
+
+  approveSuggestion: async (suggestionId: string, editor: User) => {
+    await delay(SIMULATED_DELAY);
+    const suggestion = (db.editSuggestions || []).find((s: PrayerEditSuggestion) => s.id === suggestionId);
+    if (!suggestion) return null;
+    if (editor.role !== UserRole.Editor) throw new Error('Sem permissão para aprovar sugestões.');
+
+    const prayer = db.prayers.find((p: any) => p.id === suggestion.prayerId);
+    if (prayer) {
+      Object.assign(prayer, suggestion.proposed);
+    }
+    suggestion.status = 'APPROVED';
+    suggestion.reviewerId = editor.id;
+    suggestion.reviewedAt = 'Agora';
+    saveDB();
+    return {
+      suggestion: { ...suggestion },
+      prayer: prayer ? { ...prayer } : null,
+    };
+  },
+
+  rejectSuggestion: async (suggestionId: string, editor: User, note?: string) => {
+    await delay(SIMULATED_DELAY);
+    const suggestion = (db.editSuggestions || []).find((s: PrayerEditSuggestion) => s.id === suggestionId);
+    if (!suggestion) return null;
+    if (editor.role !== UserRole.Editor) throw new Error('Sem permissão para rejeitar sugestões.');
+    suggestion.status = 'REJECTED';
+    suggestion.reviewerId = editor.id;
+    suggestion.reviewedAt = 'Agora';
+    suggestion.reviewerNote = note?.trim() || undefined;
+    saveDB();
+    return { ...suggestion };
   },
 
   incrementPrayerCount: async (prayerId: string) => {
@@ -261,6 +320,7 @@ export const api = {
   
   // FIX: Added addCirculo and fixed signatures for updatePrayer and all circle management methods
   updatePrayer: async (prayerId: string, prayerData: Partial<Prayer>, user: User): Promise<Prayer | null> => {
+    if (user.role !== UserRole.Editor) return null;
     const prayer = db.prayers.find((p: any) => p.id === prayerId);
     if (prayer) {
       Object.assign(prayer, prayerData);
@@ -387,6 +447,18 @@ export const api = {
     if (circulo && circulo.moderatorIds.includes(uid)) {
       Object.assign(circulo, data);
       saveDB();
+    }
+    return { ...circulo };
+  },
+
+  updateCirculoDevocionary: async (cid: string, devocionary: CirculoDevocionary, uid: string) => {
+    await delay(SIMULATED_DELAY);
+    const circulo = db.circulos.find((c: any) => c.id === cid);
+    if (circulo && circulo.moderatorIds.includes(uid)) {
+      circulo.devocionary = devocionary;
+      saveDB();
+    } else {
+      throw new Error('Sem permissão para editar o devocionário.');
     }
     return { ...circulo };
   },

@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { Prayer, PrayerCategory, User } from '../types';
-import { ArrowLeftIcon, BookOpenIcon } from '../components/Icons';
+import React, { useMemo, useState } from 'react';
+import { Prayer, PrayerCategory, RichContent, User } from '../types';
+import { ArrowLeftIcon } from '../components/Icons';
 import PrayerDetailScreen from './PrayerDetailScreen';
 import DevotionDetailScreen from './DevotionDetailScreen';
 import { RichTextEditor } from '../components/PrayerForm';
+import { RichEditor } from '../components/rich/RichEditor';
 
 interface EditPrayerScreenProps {
   user: User;
@@ -11,6 +12,11 @@ interface EditPrayerScreenProps {
   prayers: Prayer[];
   onBack: () => void;
   onSave: (prayerId: string, data: Partial<Prayer>) => Promise<void> | void;
+  onSuggest: (
+    prayerId: string,
+    proposed: Partial<Prayer>,
+    reason?: string,
+  ) => Promise<void> | void;
 }
 
 const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
@@ -19,44 +25,54 @@ const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
   prayers,
   onBack,
   onSave,
+  onSuggest,
 }) => {
   const [title, setTitle] = useState(prayer.title);
   const [category, setCategory] = useState<PrayerCategory>(prayer.category);
   const [text, setText] = useState(prayer.text);
+  const [content, setContent] = useState<RichContent | null>(() => {
+    if (!prayer.isDevotion) return null;
+    if (prayer.content?.type === 'tiptap') return prayer.content;
+    // Compatibilidade: inicia o editor novo com o texto legado (sem converter automaticamente no DB).
+    return {
+      type: 'tiptap',
+      version: 1,
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: (prayer.text || '').replace(/<[^>]+>/g, '') }],
+          },
+        ],
+      },
+    };
+  });
   const [latinText, setLatinText] = useState(prayer.latinText || '');
   const [tags, setTags] = useState(prayer.tags.join(', '));
-  const [searchLink, setSearchLink] = useState('');
+  const [reason, setReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const canEditDirect = user.role === 'EDITOR';
 
-  const linkedPrayers = useMemo(
-    () =>
-      prayers.filter(
-        (p) =>
-          !p.isDevotion &&
-          p.id !== prayer.id &&
-          p.title.toLowerCase().includes(searchLink.toLowerCase()),
-      ),
-    [prayers, prayer.id, searchLink],
-  );
-
-  const handleInsertLink = (id: string) => {
-    setText((prev) => `${prev}\n[prayer:${id}]`);
-  };
-
   const handleSave = async () => {
     setIsSaving(true);
-    await onSave(prayer.id, {
+    const payload: Partial<Prayer> = {
       title,
       category,
       text,
+      ...(prayer.isDevotion ? { content: content || undefined } : {}),
       latinText: latinText || undefined,
       tags: tags
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
-    });
+    };
+    if (canEditDirect) {
+      await onSave(prayer.id, payload);
+    } else {
+      await onSuggest(prayer.id, payload, reason);
+    }
     setIsSaving(false);
     onBack();
   };
@@ -68,6 +84,7 @@ const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
     title,
     category,
     text,
+    content: prayer.isDevotion ? (content || undefined) : undefined,
     latinText: latinText || undefined,
     tags: tags
       .split(',')
@@ -153,13 +170,46 @@ const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
             </div>
           </div>
 
+          {!canEditDirect && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                Motivo/Contexto (opcional)
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="Ex.: ajustar uma palavra, corrigir uma referência, melhorar a clareza..."
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none text-sm resize-y"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                Sua sugestão vai para uma fila de revisão e só entra no acervo após aprovação de um Editor.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
-            <RichTextEditor
-              label="Texto principal"
-              value={text}
-              onChange={setText}
-              rows={10}
-            />
+            {prayer.isDevotion ? (
+              <div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                  Conteúdo da devoção
+                </div>
+                <RichEditor
+                  value={content}
+                  onChange={setContent}
+                  prayers={prayers}
+                  placeholder="Escreva a devoção… e arraste orações do acervo para inserir referências."
+                  onOpenPrayer={() => {}}
+                />
+              </div>
+            ) : (
+              <RichTextEditor
+                label="Texto principal"
+                value={text}
+                onChange={setText}
+                rows={10}
+              />
+            )}
           </div>
 
           <div className="space-y-2">
@@ -171,44 +221,6 @@ const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
             />
           </div>
 
-          {/* Link prayer helper – apenas para devoções */}
-          {prayer.isDevotion && (
-            <div className="mt-4 border border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-3 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                <BookOpenIcon className="w-4 h-4 text-gold-subtle" />
-                Linkar outra oração na devoção
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar oração para linkar..."
-                value={searchLink}
-                onChange={(e) => setSearchLink(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle outline-none text-xs"
-              />
-              <div className="max-h-40 overflow-y-auto space-y-1">
-                {linkedPrayers.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleInsertLink(p.id)}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-gold-subtle/10 text-xs flex items-center justify-between"
-                  >
-                    <span className="font-semibold text-gray-700 dark:text-gray-200">
-                      {p.title}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      [prayer:{p.id}]
-                    </span>
-                  </button>
-                ))}
-                {linkedPrayers.length === 0 && (
-                  <p className="text-[11px] text-gray-400 italic">
-                    Nenhuma oração encontrada para esse termo.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
         </section>
 
         {/* Preview column */}

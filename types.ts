@@ -31,6 +31,8 @@ export interface Prayer {
   id: string;
   title: string;
   text: string;
+  /** Conteúdo rico (editor profissional). Usado principalmente em devoções e devocionários. */
+  content?: RichContent;
   latinText?: string;
   category: PrayerCategory;
   tags: string[];
@@ -41,6 +43,36 @@ export interface Prayer {
   prayerCount: number;
   parentPrayerId?: string;
   isDevotion?: boolean;
+}
+
+export type RichContent = {
+  type: 'tiptap';
+  version: 1;
+  /** JSON do documento (TipTap/ProseMirror). */
+  doc: unknown;
+};
+
+export type DevocionaryThemeId =
+  | 'MISSAL_ANTIGO'
+  | 'MONASTICO_ESPERANCA'
+  | 'AZUL_CALMO'
+  | 'ROXO_NOITE'
+  | 'BRANCO_DOURADO';
+
+export type PrayerEditSuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface PrayerEditSuggestion {
+  id: string;
+  prayerId: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  status: PrayerEditSuggestionStatus;
+  proposed: Partial<Prayer>;
+  reason?: string;
+  reviewerId?: string;
+  reviewedAt?: string;
+  reviewerNote?: string;
 }
 
 export interface Post {
@@ -76,6 +108,38 @@ export interface Circulo {
   externalLinks: { title: string; url: string }[];
   posts: Post[];
   schedule: CirculoScheduleItem[];
+  devocionary?: CirculoDevocionary;
+}
+
+export interface CirculoDevocionary {
+  title: string;
+  updatedAt: string;
+  updatedBy: { id: string; name: string };
+  themeId?: DevocionaryThemeId;
+  content?: RichContent;
+  /**
+   * Campos legados (antes do “documento único”).
+   * Mantemos para migração suave de devocionários antigos.
+   */
+  sections?: CirculoDevocionarySection[];
+}
+
+export interface CirculoDevocionarySection {
+  id: string;
+  title: string;
+  subtitle?: string;
+  /** Texto corrido rico (editor profissional) */
+  content?: RichContent;
+  items: CirculoDevocionaryItem[];
+}
+
+export type CirculoDevocionaryItemKind = 'PRAYER' | 'DEVOTION' | 'TEXT';
+
+export interface CirculoDevocionaryItem {
+  id: string;
+  kind: CirculoDevocionaryItemKind;
+  refPrayerId?: string;
+  text?: string;
 }
 
 export interface PrayerSchedule {
@@ -94,7 +158,8 @@ export enum Page {
   Devotions = 'DEVOTIONS',
   Circulos = 'CIRCULOS',
   Profile = 'PROFILE',
-  EditPrayer = 'EDIT_PRAYER'
+  EditPrayer = 'EDIT_PRAYER',
+  EditorReview = 'EDITOR_REVIEW'
 }
 
 export enum SpiritualLevel {

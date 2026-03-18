@@ -1,15 +1,29 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Circulo, User, Post, Prayer, CirculoScheduleItem } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  Circulo,
+  User,
+  Post,
+  Prayer,
+  CirculoScheduleItem,
+  CirculoDevocionary,
+  CirculoDevocionaryItemKind,
+  RichContent,
+} from '../types';
 import { api } from '../api';
 import { ArrowLeftIcon, SendIcon, UsersIcon, MessageSquareIcon, SmileIcon, MoreVerticalIcon, PinIcon, Trash2Icon, EditIcon, CrownIcon, CalendarIcon, PlusCircleIcon, LoaderIcon } from '../components/Icons';
 import Modal from '../components/Modal';
+import { RichEditor } from '../components/rich/RichEditor';
+import { RichContentRenderer } from '../components/rich/RichContentRenderer';
+import { migrateLegacyDevocionaryToRichContent } from '../components/rich/migrateLegacyDevocionaryToRichContent';
+import { devocionaryThemes } from '../components/rich/devocionaryThemes';
 
 interface CirculoDetailScreenProps {
   circulo: Circulo;
   user: User;
   prayers: Prayer[];
   onBack: () => void;
+  onSelectPrayer: (prayerId: string) => void;
   onToggleMembership: (circuloId: string) => void;
   onAddPost: (circuloId: string, text: string) => void;
   onAddReply: (circuloId: string, postId: string, text: string) => void;
@@ -333,10 +347,10 @@ const ScheduleFormModal: React.FC<{
 
 
 const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
-  const { circulo, user, prayers, onBack, onToggleMembership, onAddPost, onAddReply, onPostReaction, onUpdateCirculo, onDeletePost, onPinPost, onUpdateMemberRole, onRemoveMember, onAddScheduleItem, onUpdateScheduleItem, onDeleteScheduleItem } = props;
+  const { circulo, user, prayers, onBack, onSelectPrayer, onToggleMembership, onAddPost, onAddReply, onPostReaction, onUpdateCirculo, onDeletePost, onPinPost, onUpdateMemberRole, onRemoveMember, onAddScheduleItem, onUpdateScheduleItem, onDeleteScheduleItem } = props;
   const isMember = user.joinedCirculoIds.includes(circulo.id);
   const isModerator = circulo.moderatorIds.includes(user.id);
-  const [activeTab, setActiveTab] = useState<'feed' | 'about' | 'members' | 'manage'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'devocionary' | 'about' | 'members' | 'manage'>('feed');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
@@ -347,6 +361,55 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
 
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingScheduleItem, setEditingScheduleItem] = useState<CirculoScheduleItem | null>(null);
+
+  const defaultDevocionary: CirculoDevocionary = useMemo(
+    () => ({
+      title: `Devocionário do ${circulo.name}`,
+      updatedAt: 'Agora',
+      updatedBy: { id: user.id, name: user.name },
+      themeId: 'BRANCO_DOURADO',
+      content: undefined,
+      sections: [],
+    }),
+    [circulo.name, user.id, user.name],
+  );
+
+  const [isEditingDevocionary, setIsEditingDevocionary] = useState(false);
+  const [devocionaryDraft, setDevocionaryDraft] = useState<CirculoDevocionary>(
+    circulo.devocionary || defaultDevocionary,
+  );
+
+  const activeDevocTheme =
+    devocionaryThemes[devocionaryDraft.themeId || 'BRANCO_DOURADO'];
+  const [openDevocionaryPrayerId, setOpenDevocionaryPrayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDevocionaryDraft(circulo.devocionary || defaultDevocionary);
+  }, [circulo.devocionary, defaultDevocionary]);
+
+  const openDevocionaryPrayer = useMemo(() => {
+    if (!openDevocionaryPrayerId) return null;
+    return prayers.find((p) => p.id === openDevocionaryPrayerId) || null;
+  }, [openDevocionaryPrayerId, prayers]);
+
+  // Migração suave: se o devocionário antigo não tiver `content`,
+  // convertemos `sections` + `items` para o novo documento único.
+  const migratedDevocionaryContent = useMemo(() => {
+    if (devocionaryDraft.content) return undefined;
+    if (!devocionaryDraft.sections?.length) return undefined;
+    return migrateLegacyDevocionaryToRichContent(devocionaryDraft);
+  }, [devocionaryDraft.content, devocionaryDraft.sections]);
+
+  useEffect(() => {
+    if (!devocionaryDraft.content && migratedDevocionaryContent) {
+      setDevocionaryDraft((curr) => ({
+        ...curr,
+        themeId: curr.themeId || 'BRANCO_DOURADO',
+        content: migratedDevocionaryContent,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [migratedDevocionaryContent]);
 
   useEffect(() => {
     if (activeTab === 'members' && !members) {
@@ -394,6 +457,87 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
 
   return (
     <div className="animate-fade-in">
+        {openDevocionaryPrayer && (
+          <Modal
+            isOpen={true}
+            onClose={() => setOpenDevocionaryPrayerId(null)}
+            title={openDevocionaryPrayer.title}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gold-subtle uppercase tracking-widest">
+                  {openDevocionaryPrayer.isDevotion ? 'Devoção' : openDevocionaryPrayer.category}
+                </span>
+              </div>
+
+              <div
+                className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{
+                  __html: openDevocionaryPrayer.text
+                    .replace(/\n/g, '<br/>')
+                    .replace(/\[prayer:(p[\w-]+)\]/g, (_m: string, id: string) => {
+                      const linked = prayers.find((p) => p.id === id);
+                      return linked
+                        ? `<span class="text-gold-subtle font-semibold">${linked.title}</span>`
+                        : '[Oração não encontrada]';
+                    }),
+                }}
+              />
+
+              {openDevocionaryPrayer.latinText && (
+                <details className="group">
+                  <summary className="text-xs font-bold text-gold-subtle cursor-pointer hover:underline">
+                    Ver em latim
+                  </summary>
+                  <div
+                    className="mt-2 prose dark:prose-invert max-w-none text-sm italic text-gray-600 dark:text-gray-400"
+                    dangerouslySetInnerHTML={{
+                      __html: openDevocionaryPrayer.latinText.replace(/\n/g, '<br/>'),
+                    }}
+                  />
+                </details>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {openDevocionaryPrayer.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+                <span>
+                  Por <span className="font-semibold text-gray-600 dark:text-gray-300">{openDevocionaryPrayer.authorName}</span>
+                </span>
+                <span className="mx-2">&middot;</span>
+                <span>{openDevocionaryPrayer.createdAt}</span>
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2">
+                <button
+                  onClick={() => setOpenDevocionaryPrayerId(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-100 hover:opacity-90"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={() => {
+                    const pid = openDevocionaryPrayer.id;
+                    setOpenDevocionaryPrayerId(null);
+                    onSelectPrayer(pid);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-gold-subtle text-white text-sm font-bold hover:opacity-90"
+                >
+                  Abrir página completa
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
         {isEditModalOpen && (
             <CirculoEditModal 
                 circulo={circulo} 
@@ -444,7 +588,13 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
 
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
-          {[{key: 'feed', name: 'Feed'}, {key: 'about', name: 'Sobre'}, {key: 'members', name: 'Membros'}, {key: 'manage', name: 'Gerenciar', moderatorOnly: true}].map((tab) => {
+          {[
+            { key: 'feed', name: 'Feed' },
+            { key: 'devocionary', name: 'Devocionário' },
+            { key: 'about', name: 'Sobre' },
+            { key: 'members', name: 'Membros' },
+            { key: 'manage', name: 'Gerenciar', moderatorOnly: true },
+          ].map((tab) => {
             if (tab.moderatorOnly && !isModerator) return null;
             return (
                  <button key={tab.name} onClick={() => setActiveTab(tab.key as any)}
@@ -484,6 +634,128 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
                     <p className="text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 p-6 rounded-lg">Ainda não há posts. Seja o primeiro a partilhar!</p>
                 )}
             </div>
+        </div>
+      )}
+      {activeTab === 'devocionary' && (
+        <div className={`${activeDevocTheme.docClassName} p-6 rounded-lg`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+            <div>
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Devocionário do Círculo
+              </div>
+              <h3 className="text-2xl font-serif font-bold text-gray-900 dark:text-white mt-1">
+                {devocionaryDraft.title}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Atualizado por{' '}
+                <span className="font-semibold">
+                  {(circulo.devocionary?.updatedBy?.name) || user.name}
+                </span>{' '}
+                • {(circulo.devocionary?.updatedAt) || '—'}
+              </p>
+            </div>
+
+            {isModerator && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsEditingDevocionary((v) => !v);
+                    setDevocionaryDraft(circulo.devocionary || defaultDevocionary);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-bold bg-gold-subtle text-white hover:opacity-90"
+                >
+                  {isEditingDevocionary ? 'Cancelar' : 'Editar devocionário'}
+                </button>
+                {isEditingDevocionary && (
+                  <button
+                    onClick={() => {
+                      const payload: CirculoDevocionary = {
+                        ...devocionaryDraft,
+                        updatedAt: 'Agora',
+                        updatedBy: { id: user.id, name: user.name },
+                      };
+                      onUpdateCirculo(circulo.id, { devocionary: payload });
+                      setIsEditingDevocionary(false);
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-bold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:opacity-90"
+                  >
+                    Salvar
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {!isEditingDevocionary ? (
+            <div className="space-y-4">
+              {!devocionaryDraft.content ? (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Ainda não há conteúdo no devocionário deste círculo.
+                </p>
+              ) : (
+                <RichContentRenderer
+                  content={devocionaryDraft.content}
+                  prayers={prayers}
+                  onOpenPrayer={(id) => setOpenDevocionaryPrayerId(id)}
+                  themeId={devocionaryDraft.themeId}
+                  className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
+                />
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Título
+                </label>
+                <input
+                  value={devocionaryDraft.title}
+                  onChange={(e) =>
+                    setDevocionaryDraft((curr) => ({ ...curr, title: e.target.value }))
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm focus:border-gold-subtle focus:ring-gold-subtle"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Tema
+                </label>
+                <select
+                  value={devocionaryDraft.themeId || 'BRANCO_DOURADO'}
+                  onChange={(e) =>
+                    setDevocionaryDraft((curr) => ({
+                      ...curr,
+                      themeId: e.target.value as any,
+                    }))
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-sm focus:border-gold-subtle focus:ring-gold-subtle"
+                >
+                  <option value="BRANCO_DOURADO">Branco & Dourado</option>
+                  <option value="MISSAL_ANTIGO">Missal Antigo</option>
+                  <option value="MONASTICO_ESPERANCA">Monástico</option>
+                  <option value="AZUL_CALMO">Azul Calmo</option>
+                  <option value="ROXO_NOITE">Roxo & Noite</option>
+                </select>
+              </div>
+
+              <RichEditor
+                value={devocionaryDraft.content}
+                onChange={(next) =>
+                  setDevocionaryDraft((curr) => ({
+                    ...curr,
+                    content: next,
+                  }))
+                }
+                prayers={prayers}
+                themeId={devocionaryDraft.themeId}
+                autoFocus={true}
+                placeholder="Escreva o devocionário… arraste orações/devoções do acervo para inserir referências e use “Divisão” para inserir linhas horizontais."
+                onOpenPrayer={(id) => setOpenDevocionaryPrayerId(id)}
+                title="Editor do Devocionário"
+              />
+            </div>
+          )}
         </div>
       )}
       {activeTab === 'about' && (
