@@ -475,7 +475,7 @@ const CirculoDetailScreen: React.FC<CirculoDetailScreenProps> = (props) => {
                 dangerouslySetInnerHTML={{
                   __html: openDevocionaryPrayer.text
                     .replace(/\n/g, '<br/>')
-                    .replace(/\[prayer:(p[\w-]+)\]/g, (_m: string, id: string) => {
+                    .replace(/\[prayer:([^\]]+)\]/g, (_m: string, id: string) => {
                       const linked = prayers.find((p) => p.id === id);
                       return linked
                         ? `<span class="text-gold-subtle font-semibold">${linked.title}</span>`

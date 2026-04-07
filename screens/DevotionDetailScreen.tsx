@@ -27,12 +27,12 @@ const DevotionRenderer: React.FC<{
         setExpandedPrayers(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const parts = useMemo(() => text.split(/(\[prayer:p[\w-]+\])/g), [text]);
+    const parts = useMemo(() => text.split(/(\[prayer:[^\]]+\])/g), [text]);
     
     return (
         <div className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
             {parts.map((part, index) => {
-                const match = part.match(/\[prayer:(p[\w-]+)\]/);
+                const match = part.match(/\[prayer:([^\]]+)\]/);
                 if (match) {
                     const prayerId = match[1];
                     const linkedPrayer = prayers.find(p => p.id === prayerId);

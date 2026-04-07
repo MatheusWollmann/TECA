@@ -4,13 +4,13 @@ import { LoaderIcon } from '../components/Icons';
 import { api } from '../api';
 
 interface AuthScreenProps {
-  onLogin: () => Promise<void>;
+  onLogin: (email: string, password: string) => Promise<void>;
 }
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [formData, setFormData] = useState({ name: '', email: 'fiel@teca.com', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
 
   const handleAuth = async () => {
@@ -18,11 +18,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     setError('');
     try {
       if (mode === 'signup') {
-        await api.signup(formData.name, formData.email);
-        alert("Conta criada com sucesso no seu navegador! Agora você pode entrar.");
+        await api.signup(formData.name, formData.email, formData.password);
+        alert(
+          'Conta criada. Se o projeto exigir confirmação por e-mail, verifique sua caixa de entrada antes de entrar.',
+        );
         setMode('login');
       } else {
-        await onLogin();
+        await onLogin(formData.email, formData.password);
       }
     } catch (err: any) {
       setError(err.message || "Erro ao autenticar. Verifique seus dados.");

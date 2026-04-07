@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Prayer, Page, Circulo, UserRole, PrayerCategory, PrayerEditSuggestion } from './types';
 import { api } from './api';
-import { MOCK_PRAYERS } from './constants';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import AuthScreen from './screens/AuthScreen';
@@ -17,7 +16,7 @@ import EditorReviewScreen from './screens/EditorReviewScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
 import CirculoNav from './components/CirculoNav';
 import { LoaderIcon, BookOpenIcon, UsersIcon, CalendarIcon, HeartIcon, CrossIcon, XIcon, ArrowLeftIcon } from './components/Icons';
-import { MOCK_CIRCULOS, PRAYER_CATEGORIES } from './constants';
+import { PRAYER_CATEGORIES } from './constants';
 import Modal from './components/Modal';
 
 // ─── Página pública do acervo completo ───
@@ -90,7 +89,7 @@ const PublicCatalogPage: React.FC<{
                   <p className="mt-2 text-sm font-serif italic text-gray-500 dark:text-gray-400 leading-relaxed">{selectedPrayer.latinText}</p>
                 </details>
               )}
-              <div className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-serif text-lg" dangerouslySetInnerHTML={{ __html: selectedPrayer.text.replace(/\[prayer:(p[\w-]+)\]/g, (_match: string, id: string) => {
+              <div className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-serif text-lg" dangerouslySetInnerHTML={{ __html: selectedPrayer.text.replace(/\[prayer:([^\]]+)\]/g, (_match: string, id: string) => {
                 const linked = prayers.find(p => p.id === id);
                 return linked ? `<em class="text-gold-subtle font-semibold not-italic">${linked.title}</em>` : '[Oração não encontrada]';
               }) }} />
@@ -285,25 +284,57 @@ const App: React.FC = () => {
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
     setDarkMode(isDark);
-    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sessionUser = await api.restoreSession();
+        if (cancelled) return;
+        if (sessionUser) {
+          const data = await api.getData(sessionUser.id);
+          if (cancelled) return;
+          setUser(data.user);
+          setPrayers(data.prayers);
+          setCirculos(data.circulos);
+          setEditSuggestions(data.editSuggestions);
+        } else {
+          const [p, c] = await Promise.all([
+            api.fetchPublicPrayers().catch(() => []),
+            api.fetchPublicCirculos().catch(() => []),
+          ]);
+          if (!cancelled) {
+            setPrayers(p);
+            setCirculos(c);
+          }
+        }
+      } catch (e) {
+        console.error('Bootstrap Error', e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const refreshData = async () => {
     try {
-        const loggedInUser = await api.login();
-        if (loggedInUser) {
-           const { user: userData, prayers: prayerData, circulos: circuloData, editSuggestions: suggestionData } = await api.getData(loggedInUser.id);
-           setUser(userData);
-           setPrayers(prayerData);
-           setCirculos(circuloData);
-           setEditSuggestions(suggestionData || []);
-        }
+      const sessionUser = await api.restoreSession();
+      if (sessionUser) {
+        const { user: userData, prayers: prayerData, circulos: circuloData, editSuggestions: suggestionData } =
+          await api.getData(sessionUser.id);
+        setUser(userData);
+        setPrayers(prayerData);
+        setCirculos(circuloData);
+        setEditSuggestions(suggestionData || []);
+      }
     } catch (e) {
-        console.error("Auth/Data Error", e);
-    } finally {
-        setIsLoading(false);
+      console.error('Auth/Data Error', e);
     }
-  }
+  };
 
   useEffect(() => {
     if (darkMode) {
@@ -315,19 +346,30 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
-    await refreshData();
-    setCurrentPage(Page.Home);
-    setShowAuth(false);
+    try {
+      await api.login(email, password);
+      await refreshData();
+      setCurrentPage(Page.Home);
+      setShowAuth(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = async () => {
     await api.logout();
     setUser(null);
-    setPrayers([]);
-    setCirculos([]);
     setEditSuggestions([]);
+    try {
+      const [p, c] = await Promise.all([api.fetchPublicPrayers(), api.fetchPublicCirculos()]);
+      setPrayers(p);
+      setCirculos(c);
+    } catch {
+      setPrayers([]);
+      setCirculos([]);
+    }
   };
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
@@ -434,8 +476,11 @@ const App: React.FC = () => {
   const toggleCirculoMembership = async (id: string) => {
     if (!user) return;
     const { joinedCirculoIds, memberCount } = await api.toggleCirculoMembership(user.id, id);
-    setUser(curr => curr ? { ...curr, joinedCirculoIds } : null);
-    setCirculos(curr => curr.map(c => c.id === id ? { ...c, memberCount } : c));
+    const refreshed = await api.fetchCirculoById(id);
+    setUser((curr) => (curr ? { ...curr, joinedCirculoIds } : null));
+    setCirculos((curr) =>
+      curr.map((c) => (c.id === id ? refreshed ?? { ...c, memberCount } : c)),
+    );
   };
 
   const addPost = async (id: string, text: string) => {
@@ -447,7 +492,7 @@ const App: React.FC = () => {
   const handlePostReaction = async (cid: string, pid: string, e: string) => {
     if (!user) return;
     const updated = await api.handlePostReaction(cid, pid, user.id, e);
-    setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+    if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
   };
 
   const renderContent = () => {
@@ -507,50 +552,50 @@ const App: React.FC = () => {
             onPostReaction={handlePostReaction}
             onAddReply={async (cid, pid, t) => {
                 const updated = await api.addReply(cid, pid, t, user);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onUpdateCirculo={async (cid, d) => {
                 const updated = await api.updateCirculo(cid, d, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onDeletePost={async (cid, pid) => {
                 const updated = await api.deletePost(cid, pid, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onPinPost={async (cid, pid) => {
                 const updated = await api.pinPost(cid, pid, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onUpdateMemberRole={async (cid, mid, isM) => {
                 const updated = await api.updateMemberRole(cid, mid, isM, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onRemoveMember={async (cid, mid) => {
                 const updated = await api.removeMember(cid, mid, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onAddScheduleItem={async (cid, i) => {
                 const updated = await api.addScheduleItem(cid, i, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onUpdateScheduleItem={async (cid, iid, i) => {
                 const updated = await api.updateScheduleItem(cid, iid, i, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
             onDeleteScheduleItem={async (cid, iid) => {
                 const updated = await api.deleteScheduleItem(cid, iid, user.id);
-                setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
+                if (updated) setCirculos(curr => curr.map(x => x.id === cid ? updated : x));
             }}
         />
     }
 
     switch (currentPage) {
-      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] || MOCK_PRAYERS[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
+      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] ?? prayers[0] ?? null} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
       case Page.Prayers: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
       case Page.Devotions: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
       case Page.Circulos: return <CirculoListScreen circulos={circulos} user={user} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} onRefreshData={refreshData} />;
       case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} onAddScheduledPrayer={handleAddScheduledPrayer} />;
-      default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
+      default: return <HomeScreen user={user} dailyPrayer={prayers[0] ?? null} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
     }
   };
 
@@ -560,16 +605,16 @@ const App: React.FC = () => {
       return <AuthScreen onLogin={handleLogin} />;
     }
 
-    const publicDevotions = MOCK_PRAYERS.filter(p => p.isDevotion);
-    const publicPrayers = MOCK_PRAYERS.filter(p => !p.isDevotion);
-    const totalPrayerCount = MOCK_PRAYERS.reduce((sum, p) => sum + p.prayerCount, 0);
+    const publicDevotions = prayers.filter(p => p.isDevotion);
+    const publicPrayers = prayers.filter(p => !p.isDevotion);
+    const totalPrayerCount = prayers.reduce((sum, p) => sum + p.prayerCount, 0);
     const featuredPrayer = publicPrayers[0];
-    const marqueeItems = [...MOCK_PRAYERS, ...MOCK_PRAYERS];
+    const marqueeItems = prayers.length > 0 ? [...prayers, ...prayers] : [];
 
     if (showPublicCatalog) {
       return <PublicCatalogPage
         initialTab={showPublicCatalog}
-        prayers={MOCK_PRAYERS}
+        prayers={prayers}
         onBack={() => setShowPublicCatalog(null)}
         onSelectPrayer={setPublicSelectedPrayer}
         selectedPrayer={publicSelectedPrayer}
@@ -611,8 +656,8 @@ const App: React.FC = () => {
                   </details>
                 )}
 
-                <div className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-serif text-lg" dangerouslySetInnerHTML={{ __html: publicSelectedPrayer.text.replace(/\[prayer:(p[\w-]+)\]/g, (_match: string, id: string) => {
-                  const linked = MOCK_PRAYERS.find(p => p.id === id);
+                <div className="prose prose-base dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-serif text-lg" dangerouslySetInnerHTML={{ __html: publicSelectedPrayer.text.replace(/\[prayer:([^\]]+)\]/g, (_match: string, id: string) => {
+                  const linked = prayers.find(p => p.id === id);
                   return linked ? `<em class="text-gold-subtle font-semibold not-italic">${linked.title}</em>` : '[Oração não encontrada]';
                 }) }} />
 
@@ -732,7 +777,7 @@ const App: React.FC = () => {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-3 gap-8 text-center">
               <div className="space-y-2">
-                <p className="text-4xl sm:text-6xl font-serif font-bold text-gray-900 dark:text-white">{MOCK_PRAYERS.length}</p>
+                <p className="text-4xl sm:text-6xl font-serif font-bold text-gray-900 dark:text-white">{prayers.length}</p>
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Orações no acervo</p>
               </div>
               <div className="space-y-2">
@@ -740,7 +785,7 @@ const App: React.FC = () => {
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Vezes rezadas</p>
               </div>
               <div className="space-y-2">
-                <p className="text-4xl sm:text-6xl font-serif font-bold text-gray-900 dark:text-white">{MOCK_CIRCULOS.length}</p>
+                <p className="text-4xl sm:text-6xl font-serif font-bold text-gray-900 dark:text-white">{circulos.length}</p>
                 <p className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Círculos ativos</p>
               </div>
             </div>
@@ -942,7 +987,7 @@ const App: React.FC = () => {
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {MOCK_CIRCULOS.map((c, i) => (
+              {circulos.map((c, i) => (
                 <div key={c.id} className={`animate-stagger delay-${(i+1)*100} group bg-white dark:bg-gray-800 rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500`}>
                   <div className="h-32 overflow-hidden relative">
                     <img src={c.coverImageUrl} alt={c.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />

@@ -1,0 +1,8 @@
+# Config mínima para Supabase CLI (supabase link / db push / db reset).
+# Veja https://supabase.com/docs/guides/cli/config
+
+project_id = "teca"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
