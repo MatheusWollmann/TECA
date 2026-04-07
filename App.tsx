@@ -312,7 +312,7 @@ const App: React.FC = () => {
       } catch (e) {
         console.error('Bootstrap Error', e);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        setIsLoading(false);
       }
     })();
     return () => {
@@ -590,12 +590,12 @@ const App: React.FC = () => {
     }
 
     switch (currentPage) {
-      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] || prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
+      case Page.Home: return <HomeScreen user={user} dailyPrayer={prayers[1] ?? prayers[0] ?? null} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
       case Page.Prayers: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} />;
       case Page.Devotions: return <PrayerListScreen user={user} prayers={prayers} favoritePrayerIds={user.favoritePrayerIds} toggleFavorite={toggleFavorite} addPrayer={handleAddPrayer} onSelectPrayer={handleSelectPrayer} isDevotionList />;
       case Page.Circulos: return <CirculoListScreen circulos={circulos} user={user} joinedCirculoIds={user.joinedCirculoIds} onSelectCirculo={handleSelectCirculo} onToggleMembership={toggleCirculoMembership} onRefreshData={refreshData} />;
       case Page.Profile: return <ProfileScreen user={user} prayers={prayers} onSelectPrayer={handleSelectPrayer} onAddScheduledPrayer={handleAddScheduledPrayer} />;
-      default: return <HomeScreen user={user} dailyPrayer={prayers[0]} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
+      default: return <HomeScreen user={user} dailyPrayer={prayers[0] ?? null} circulos={circulos} prayers={prayers} onSelectPrayer={handleSelectPrayer} onSelectCirculo={handleSelectCirculo} onAddScheduledPrayer={handleAddScheduledPrayer} onRemoveScheduledPrayer={handleRemoveScheduledPrayer} onToggleScheduledPrayer={handleToggleScheduledPrayer} onPostReaction={handlePostReaction} />;
     }
   };
 

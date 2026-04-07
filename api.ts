@@ -143,8 +143,39 @@ async function loadJoinedCirculoIds(userId: string): Promise<string[]> {
   return (data || []).map((x) => x.circulo_id as string);
 }
 
+/** Cria public.profiles se faltar (ex.: trigger ausente ou usuário legado). */
+async function ensureProfileRow(userId: string): Promise<void> {
+  const {
+    data: { user },
+    error: uerr,
+  } = await supabase.auth.getUser();
+  if (uerr || !user || user.id !== userId) return;
+
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ||
+    user.email?.split('@')[0] ||
+    'Usuário';
+  const payload = {
+    id: user.id,
+    email: user.email ?? '',
+    display_name: displayName,
+    avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`,
+  };
+
+  const { error } = await supabase.from('profiles').insert(payload);
+  if (error && error.code !== '23505') {
+    console.warn('ensureProfileRow', error);
+  }
+}
+
 async function buildUserFromProfile(userId: string, emailFallback: string): Promise<User | null> {
-  const { data: p, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  let { data: p, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  if (!p) {
+    await ensureProfileRow(userId);
+    const second = await supabase.from('profiles').select('*').eq('id', userId).single();
+    p = second.data;
+    error = second.error;
+  }
   if (error || !p) return null;
   const joined = await loadJoinedCirculoIds(userId);
   const email =

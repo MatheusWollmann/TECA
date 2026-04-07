@@ -5,7 +5,8 @@ import { HeartIcon, CrossIcon, UsersIcon, CalendarIcon, Trash2Icon, MessageSquar
 
 interface HomeScreenProps {
   user: User;
-  dailyPrayer: Prayer;
+  /** Destaque do dia; null se o acervo ainda estiver vazio (evita crash). */
+  dailyPrayer: Prayer | null;
   circulos: Circulo[];
   prayers: Prayer[];
   onSelectPrayer: (prayerId: string) => void;
@@ -195,14 +196,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="relative overflow-hidden bg-gradient-to-br from-gold-subtle to-yellow-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-gold-subtle/25">
             <div className="relative z-10">
               <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Misterium Fidei</span>
-              <h2 className="text-3xl font-black mt-4 mb-2">{dailyPrayer.title}</h2>
-              <div className="text-white/90 text-lg leading-relaxed line-clamp-2 mb-6" dangerouslySetInnerHTML={{ __html: dailyPrayer.text }}></div>
-              <button
-                onClick={() => onSelectPrayer(dailyPrayer.id)}
-                className="bg-white text-gold-subtle font-black px-8 py-3 rounded-2xl hover:scale-105 active:scale-95 transition-transform shadow-lg"
-              >
-                REZAR AGORA
-              </button>
+              {dailyPrayer ? (
+                <>
+                  <h2 className="text-3xl font-black mt-4 mb-2">{dailyPrayer.title}</h2>
+                  <div className="text-white/90 text-lg leading-relaxed line-clamp-2 mb-6" dangerouslySetInnerHTML={{ __html: dailyPrayer.text }} />
+                  <button
+                    type="button"
+                    onClick={() => onSelectPrayer(dailyPrayer.id)}
+                    className="bg-white text-gold-subtle font-black px-8 py-3 rounded-2xl hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                  >
+                    REZAR AGORA
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-black mt-4 mb-2">Acervo em construção</h2>
+                  <p className="text-white/90 text-lg leading-relaxed mb-6">
+                    Ainda não há orações cadastradas. Abra a aba Orações para adicionar a primeira — ou confira se o seed foi aplicado no Supabase.
+                  </p>
+                </>
+              )}
             </div>
             <CrossIcon className="absolute -bottom-10 -right-10 w-64 h-64 text-white/10 rotate-12" />
           </div>
