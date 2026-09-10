@@ -234,6 +234,7 @@ const EditPrayerScreen: React.FC<EditPrayerScreenProps> = ({
               prayers={prayers}
               user={user}
               onBack={() => {}}
+              onEdit={() => {}}
               onPray={() => {}}
               onToggleFavorite={() => {}}
               onUpdatePrayer={() => {}}

@@ -58,8 +58,10 @@ Reintroduzir o estado que falta OU remover o código morto.
   (especialmente Grupo C — teste de render + abrir modal).
 
 ## Tasks
-- [ ] TEC-___ — Grupo A: `style` em ícones
-- [ ] TEC-___ — Grupo B: `api.ts` total_prayers + moderator_ids
-- [ ] TEC-___ — Grupo C: estado faltando em HomeScreen (QA no browser obrigatório)
-- [ ] TEC-___ — Grupo D: props obrigatórias em EditPrayerScreen
-- [ ] TEC-___ — remover `continue-on-error` do CI (blocked by todos acima)
+Entregues num PR único na branch `spec/0002-typecheck` (diff ~150 linhas).
+
+- [ ] **TEC-9** — Grupo A: `style?` em `IconProps` + repassar nos ícones
+- [ ] **TEC-10** — Grupo B: `api.ts` `total_prayers` (bug de runtime) + `moderator_ids` nulo
+- [ ] **TEC-11** — Grupo C: código morto `openScheduleModal` em HomeScreen (QA no browser)
+- [ ] **TEC-12** — Grupo D: props obrigatórias em EditPrayerScreen / `RichTextEditor`
+- [ ] **TEC-13** — remover `continue-on-error` do Typecheck no CI (blocked by TEC-9..12)

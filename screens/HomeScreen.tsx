@@ -141,13 +141,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   }, [dayProgressPct, totalSchedule]);
 
-  const openScheduleModal = () => {
-    setScheduleTime('');
-    setScheduleLabel('');
-    setSearchTerm('');
-    setIsModalOpen(true);
-  };
-
   return (
     <div className="space-y-8 pb-10 relative">
       {showDayCelebration && (

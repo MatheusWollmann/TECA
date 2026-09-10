@@ -61,7 +61,7 @@ export const RichTextEditor: React.FC<{
     label: string; 
     rows?: number;
     showPrayerLink?: boolean;
-    onPrayerLink: () => void;
+    onPrayerLink?: () => void;
 }> = ({ value, onChange, label, rows = 6 }) => {
     return (
         <div>
