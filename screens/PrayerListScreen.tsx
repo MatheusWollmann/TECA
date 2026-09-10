@@ -42,7 +42,7 @@ const PrayerCard: React.FC<{
                         <BookmarkIcon className={`w-6 h-6 transition-colors ${isFavorite ? 'fill-gold-subtle text-gold-subtle' : 'text-gray-400'}`} />
                     </button>
                 </div>
-                <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm truncate-3-lines">{prayer.text.replace(/<[^>]+>|\[prayer:[^\]]+\]/g, '')}</p>
+                <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm leading-relaxed line-clamp-10">{prayer.text.replace(/<[^>]+>|\[prayer:[^\]]+\]/g, '')}</p>
                 <div className="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                     <div className="flex items-center">
                         <HeartIcon className="w-4 h-4 mr-1 text-red-500"/>
