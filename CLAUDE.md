@@ -9,7 +9,6 @@ oração. É uma SPA (sem SSR). Solo founder.
 - **Supabase** — auth, Postgres, RLS. Cliente em `lib/supabaseClient.ts`. Migrations em `supabase/migrations/`.
 - **Tailwind via CDN** — config inline em `index.html`. Não há build de CSS nem `tailwind.config.js`.
 - **TipTap** — editor rich em `components/rich/`.
-- **Gemini** (`@google/genai`) — features de IA.
 - **Deploy:** Vercel (estático, publica `dist/`), config em `vercel.json`. `netlify.toml` é fallback.
 - **Analytics:** PostHog — wrapper em `lib/analytics.ts`.
 - **Erros / traces:** Sentry — wrapper em `lib/observability.ts`.
@@ -26,10 +25,10 @@ oração. É uma SPA (sem SSR). Solo founder.
 
 ## Dívida técnica conhecida (candidata a virar spec)
 - `App.tsx` (~1067 linhas), `api.ts` (~853), `screens/CommunityDetailScreen.tsx` (~847) são monolíticos — difíceis para agentes editarem em paralelo. Dividir incrementalmente.
-- `vite.config.ts` injeta `GEMINI_API_KEY` no bundle client (`process.env.API_KEY`) — a chave vaza para qualquer usuário. Migrar chamadas Gemini para Edge Function.
-- `index.html` tem um importmap de `aistudiocdn.com` **e** bundling do Vite — risco de React duplicado. Limpar.
 - 9 usos de `dangerouslySetInnerHTML` — auditar (XSS no acervo/wiki de orações).
+- Bundle único de ~944 KB (sem code-splitting). Considerar `manualChunks` / `import()` dinâmico.
 - Zero testes antes deste workflow.
+- Se for adicionar IA (ex.: Gemini): a chamada vai numa Supabase Edge Function, nunca no bundle client. O projeto já teve `@google/genai` como scaffold do template do AI Studio (removido por não ter uso).
 
 ## Fluxo de trabalho
 Detalhes em `docs/WORKFLOW.md`. Resumo:

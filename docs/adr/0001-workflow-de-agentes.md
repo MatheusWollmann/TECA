@@ -24,5 +24,9 @@ specs versionadas em `docs/specs/`, tasks no Linear, execução paralela via Con
 - Mais difícil: overhead de escrever spec antes de codar; disciplina de manter o `CLAUDE.md` atualizado.
 - Precisa: `npm install` das novas dev deps; branch protection + Merge Queue no GitHub;
   MCPs do Linear e do Chrome DevTools conectados.
-- Primeiras tasks de dívida a agendar: dividir `App.tsx`/`api.ts`, tirar `GEMINI_API_KEY` do
-  bundle, auditar `dangerouslySetInnerHTML`, limpar o importmap do `index.html`.
+- Primeiras tasks de dívida a agendar: zerar os erros de tipo (spec 0002), dividir
+  `App.tsx`/`api.ts`, auditar `dangerouslySetInnerHTML`, code-splitting do bundle.
+
+## Notas
+- O scaffold do template do AI Studio (README, `metadata.json`, importmap `aistudiocdn.com`,
+  `@google/genai` + `vite.config` define) foi removido — não tinha uso no código.

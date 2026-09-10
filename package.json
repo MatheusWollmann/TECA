@@ -25,7 +25,6 @@
     "scrape:catolicoapp:categories": "node scripts/scrape-catolicoapp.mjs --discover-categories"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@sentry/react": "^8.47.0",
     "@supabase/supabase-js": "^2.99.2",
     "@tiptap/extension-horizontal-rule": "^3.20.4",
