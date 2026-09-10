@@ -37,7 +37,3 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # Placeholder — o build lê GEMINI_API_KEY via vite define.
-          # Configure o valor real em Settings > Secrets se o build precisar dele.
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

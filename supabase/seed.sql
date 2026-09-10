@@ -107,3 +107,7 @@ VALUES
   false
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- Catálogo extra (24+ orações tradicionais): edite data/prayers-bulk.json e regenere com
+--   npm run import-prayers:sql
+-- Em seguida execute no SQL Editor: supabase/seeds/prayers_bulk.sql

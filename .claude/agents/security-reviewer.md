@@ -16,9 +16,9 @@ coisa no bundle client é visível para o usuário.
 - Migration é reversível e não destrói dado? `DROP`/`DELETE` sem aprovação → barre.
 
 **Segredos**
-- Nenhuma chave de serviço, `service_role`, ou API key de backend no código client ou no
-  `vite.config.ts` `define`. (Dívida conhecida: `GEMINI_API_KEY` já vaza hoje — se a task
-  mexe em IA, exija mover para Edge Function.)
+- Nenhuma chave de serviço, `service_role`, ou API key de backend no código client, em
+  `import.meta.env.VITE_*` ou em `vite.config.ts` `define`. Chamada a API de terceiros
+  (IA, e-mail, pagamento) vai em Supabase Edge Function.
 - `.env.local` não commitado. `.env.example` só com placeholders.
 
 **XSS / injeção**

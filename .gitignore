@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Scraping local (conteúdo de terceiros — não versionar sem revisão jurídica)
+data/prayers-scraped-catolicoapp.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

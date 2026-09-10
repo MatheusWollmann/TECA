@@ -1,0 +1,186 @@
+{
+  "_meta": {
+    "format_version": 1,
+    "license_note": "Textos de orações amplamente difundidas na tradição católica (fórmulas clássicas em português). Para uso comercial amplo, confirme com assessoramento jurídico; muitas orações tradicionais são consideradas domínio público em várias jurisdições.",
+    "html_convention": "O campo text pode usar HTML simples como no app: <b>, <i>, <br/>. Evite scripts e atributos.",
+    "category_values": [
+      "Diárias",
+      "Marianas",
+      "Santos",
+      "Momentos da Vida",
+      "Intenção Especial"
+    ]
+  },
+  "prayers": [
+    {
+      "title": "Glória ao Pai",
+      "text": "Glória ao Pai, e ao Filho, e ao Espírito Santo. Como era no princípio, agora e sempre. Amém.",
+      "category": "Diárias",
+      "tags": ["#trindade", "#louvor"],
+      "author_name": "Tradição da Igreja",
+      "latin_text": "Gloria Patri, et Filio, et Spiritui Sancto. Sicut erat in principio, et nunc, et semper, et in saecula saeculorum. Amen."
+    },
+    {
+      "title": "Salve Rainha",
+      "text": "Salve, Rainha, mãe de misericórdia, vida, doçura e esperança nossa, salve! A vós bradamos os degredados filhos de Eva; a vós suspiramos gemendo e chorando neste vale de lágrimas. Eia, pois, advogada nossa, esses vossos olhos misericordiosos a nós volvei, e depois deste desterro mostrai-nos Jesus, bendito fruto do vosso ventre, ó clemente, ó piedosa, ó doce sempre Virgem Maria. V. Rogai por nós, santa Mãe de Deus. R. Para que sejamos dignos das promessas de Cristo. Amém.",
+      "category": "Marianas",
+      "tags": ["#Maria", "#Rainha", "#antifona"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração a São Miguel Arcanjo",
+      "text": "São Miguel Arcanjo, defendei-nos no combate, sede o nosso refúgio contra as maldades e ciladas do demônio. Ordene-lhe Deus, instantemente o pedimos, e vós, príncipe da milícia celeste, pela virtude divina, precipitai no inferno a Satanás e aos outros espíritos malignos, que andam pelo mundo para perdição das almas. Amém.",
+      "category": "Santos",
+      "tags": ["#SãoMiguel", "#proteção"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração do Anjo da Guarda",
+      "text": "Santo Anjo do Senhor, meu zeloso guardador, se a ti me confiou a piedade divina, sempre me rege, guarda, governa, ilumina. Amém.",
+      "category": "Diárias",
+      "tags": ["#anjo", "#proteção"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Memorare",
+      "text": "Lembrai-vos, ó piíssima Virgem Maria, que nunca se ouviu dizer que algum daqueles que por vós têm implorado o vosso socorro, tenha sido por vós desamparado. Animados com igual confiança, a vós recorremos, ó Mãe do Verbo encarnado, não desprezeis as nossas súplicas, mas dignai-vos de as ouvir propícia. Amém.",
+      "category": "Marianas",
+      "tags": ["#Maria", "#confiança"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Acto de Contrição",
+      "text": "Senhor meu Jesus Cristo, Deus e homem verdadeiro, Criador e Redentor meu, por serdes vós quem sois, sumamente bom, e porque vos amo de todo o meu coração, e penso de vos ofender, pesa-me de todo o meu coração de vos ter ofendido; proponho firmemente, ajudado com a graça que me concedereis, emendar-me e nunca mais tornar a pecar. Peço-vos e espero que me perdoeis pelos vossos merecimentos e por intercessão da bem-aventurada Virgem Maria e de todos os santos. Amém.",
+      "category": "Diárias",
+      "tags": ["#penitência", "#perdão"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Acto de Fé",
+      "text": "Meu Deus, eu creio firmemente todas as verdades que a Santa Igreja Católica crê e ensina, porque Vós as revelastes. Amém.",
+      "category": "Diárias",
+      "tags": ["#fé"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Acto de Esperança",
+      "text": "Meu Deus, espero com firme confiança alcançar de vossa bondade a vida eterna e as graças necessárias para merecê-la, porque sois onipotente e fiel para cumprir as vossas promessas. Amém.",
+      "category": "Diárias",
+      "tags": ["#esperança"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Acto de Caridade",
+      "text": "Meu Deus, amo-Vos sobre todas as coisas com todo o meu coração, porque sois infinitamente bom e digno de ser amado. Amém.",
+      "category": "Diárias",
+      "tags": ["#caridade", "#amor"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Começo das Leituras (Veni Sancte Spiritus)",
+      "text": "Vinde, Espírito Santo, enchei os corações dos vossos fiéis e acendei neles o fogo do vosso amor. Enviai o vosso Espírito e tudo será criado, e renovareis a face da terra. Ó Deus, que instruístes os corações dos vossos fiéis com a luz do Espírito Santo; fazei-nos apreciar retamente todas as coisas segundo o mesmo Espírito, e gozar sempre da sua consolação. Por Cristo, Senhor nosso. Amém.",
+      "category": "Diárias",
+      "tags": ["#EspíritoSanto", "#oração"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Bênção antes das refeições",
+      "text": "Abençoai, Senhor, estes alimentos, para que recebamos com gratidão o pão de cada dia. Por Cristo, Senhor nosso. Amém.",
+      "category": "Momentos da Vida",
+      "tags": ["#mesa", "#gratidão"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Ação de graças depois das refeições",
+      "text": "Demos graças ao Senhor pelos benefícios recebidos. Demos graças a Deus. Ao Santíssimo e Diviníssimo Sacramento. Ao nome de Jesus. Ao Coração de Jesus. Por intercessão da Virgem Maria. Amém.",
+      "category": "Momentos da Vida",
+      "tags": ["#mesa", "#gratidão"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração pela paz",
+      "text": "Senhor Jesus, Príncipe da Paz, fazei brotar a paz nos corações e sobre a face da terra. Concedei aos líderes sabedoria e aos povos união na justiça e na caridade. Por nosso Senhor Jesus Cristo. Amém.",
+      "category": "Intenção Especial",
+      "tags": ["#paz", "#mundo"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração pelos doentes",
+      "text": "Ó bom Jesus, que curastes tantos enfermos, tende piedade deste vosso servo (desta vossa serva), aliviai o seu sofrimento e restaurai a saúde, se for para a sua alma. Por Cristo, Senhor nosso. Amém.",
+      "category": "Momentos da Vida",
+      "tags": ["#saúde", "#enfermos"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração pelos falecidos",
+      "text": "Eterno Deus e Pai bondoso, acolhei na vossa luz o nosso irmão (nossa irmã) falecido(a). Concedei-lhe, pelos méritos de Jesus Cristo, o descanso eterno. Amém. Dai-lhe, Senhor, o descanso eterno, e brilhe para ele (ela) a luz perpétua. Descansem em paz. Amém.",
+      "category": "Momentos da Vida",
+      "tags": ["#falecidos", "#sufrágio"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração do Enfermo",
+      "text": "Filho de Davi, tende piedade de mim. Jesus, manso e humilde de coração, fazei o meu coração semelhante ao vosso. Ó Jesus, pelas vossas chagas santas, salvai-me e guardai-me.",
+      "category": "Momentos da Vida",
+      "tags": ["#enfermo", "#confiança"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração a São José",
+      "text": "Glorioso São José, esposo da Virgem Maria, obtende-me espírito de trabalho honesto e paz no lar; defendei a Santa Igreja e as famílias cristãs. Amém.",
+      "category": "Santos",
+      "tags": ["#SãoJosé", "#familia"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Ladainha — invocação breve",
+      "text": "Senhor, tende piedade de nós. Cristo, tende piedade de nós. Senhor, tende piedade de nós. Santa Maria, rogai por nós. São José, rogai por nós. Todos os santos e santas de Deus, rogai por nós.",
+      "category": "Marianas",
+      "tags": ["#ladainha", "#intercessão"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oferecimento do dia",
+      "text": "Senhor, ofereço-vos todas as obras deste dia: os trabalhos, alegrias e sofrimentos, em união com o vosso sacrifício na cruz, por minha salvação e pela de todos. Amém.",
+      "category": "Diárias",
+      "tags": ["#dia", "#oferecimento"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração do Terceiro, Sexto e Nono",
+      "text": "<b>O Terceiro:</b> Ó Verbo de Deus, que deste vida a todas as coisas, em vós é manifestada a vontade do Pai no Espírito Santo; purificai-nos de todo pecado e salvai-nos.<br/><br/><b>O Sexto:</b> Ó Cristo, Deus e homem, que destes alento aos enfermos, sede nosso descanso no meio do labor deste dia.<br/><br/><b>O Nono:</b> Misericordioso Salvador, que destes alívio aos cansados no fim do dia, concedei-nos a graça de uma vida santa e a paz na hora da morte.",
+      "category": "Diárias",
+      "tags": ["#horas", "#Jesus"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Súplica ao Coração de Jesus",
+      "text": "Coração sacratíssimo de Jesus, tende piedade de nós.",
+      "category": "Diárias",
+      "tags": ["#CoraçãodeJesus", "#misericórdia"],
+      "author_name": "Tradição da Igreja",
+      "latin_text": "Cor Iesu sacratissimum, miserere nobis."
+    },
+    {
+      "title": "Jaculatória de Jesus Misericordioso",
+      "text": "Jesus misericordioso, piedade de nós e do mundo inteiro.",
+      "category": "Diárias",
+      "tags": ["#DivinaMisericórdia", "#jaculatória"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Oração por vocação e missão",
+      "text": "Espírito Santo, despertai no coração da Igreja grandes vocações sacerdotais e religiosas. Fortalecei os batizados para serem sal e luz no mundo. Amém.",
+      "category": "Intenção Especial",
+      "tags": ["#vocação", "#Igreja"],
+      "author_name": "Tradição da Igreja"
+    },
+    {
+      "title": "Magnificat (breve)",
+      "text": "A minh’alma engrandece ao Senhor, e o meu espírito exulta em Deus, meu Salvador, porque pôs os olhos na humildade de sua serva. Desde agora todas as gerações hão de chamar-me bem-aventurada, porque grandes coisas me fez o Poderoso, e santo é o seu nome.",
+      "category": "Marianas",
+      "tags": ["#Magnificat", "#louvor"],
+      "author_name": "Tradição da Igreja"
+    }
+  ]
+}

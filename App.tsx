@@ -236,7 +236,7 @@ const PublicCatalogPage: React.FC<{
                     {prayer.isDevotion ? 'Devoção' : prayer.category}
                   </p>
                   <h4 className="mt-2 text-lg font-serif font-bold text-gray-900 dark:text-white group-hover:text-gold-subtle transition-colors">{prayer.title}</h4>
-                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-10">
                     {prayer.text.replace(/<[^>]+>|\[prayer:[^\]]+\]/g, '')}
                   </p>
                   <div className="mt-5 pt-4 border-t border-gray-50 dark:border-gray-700/50 flex items-center justify-between">
@@ -891,7 +891,7 @@ const App: React.FC = () => {
                   <div className="p-7">
                     <p className="text-[10px] font-black text-gold-subtle uppercase tracking-widest">{prayer.category}</p>
                     <h4 className="mt-2 text-xl font-serif font-bold text-gray-900 dark:text-white group-hover:text-gold-subtle transition-colors">{prayer.title}</h4>
-                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-10">
                       {prayer.text.replace(/<[^>]+>|\[prayer:[^\]]+\]/g, '')}
                     </p>
                     <div className="mt-6 pt-4 border-t border-gray-50 dark:border-gray-700/50 flex items-center justify-between">
@@ -945,7 +945,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-2xl font-serif font-bold group-hover:text-gold-subtle transition-colors">{prayer.title}</h4>
-                        <p className="mt-3 text-sm text-gray-400 leading-relaxed line-clamp-4">
+                        <p className="mt-3 text-sm text-gray-400 leading-relaxed line-clamp-10">
                           {prayer.text.replace(/<[^>]+>|\[prayer:[^\]]+\]/g, '')}
                         </p>
                         <div className="mt-6 flex items-center gap-4 text-xs text-gray-500">
