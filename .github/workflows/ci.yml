@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # TODO(remover continue-on-error): o código herdado tem 14 erros de tipo.
+      # Rastreados em docs/specs/0002-zerar-erros-de-tipo.md. Ao zerar, tornar bloqueante.
+      - name: Typecheck
+        run: npm run typecheck
+        continue-on-error: true
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder — o build lê GEMINI_API_KEY via vite define.
+          # Configure o valor real em Settings > Secrets se o build precisar dele.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
