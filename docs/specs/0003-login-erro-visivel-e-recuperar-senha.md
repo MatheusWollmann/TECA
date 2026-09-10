@@ -126,17 +126,19 @@ adicionar `https://www.teca.app.br/**` e `http://localhost:3000/**` (hoje só h�
 se ficar fora do escopo, deixar `// TODO analytics` e anotar.)
 
 ## Tasks (preenchido pelo /breakdown)
-Todas tocam `AuthScreen.tsx` e/ou `App.tsx` → **serial**, nesta ordem:
+Todas tocam `AuthScreen.tsx` e/ou `App.tsx` → **serial**, nesta ordem.
+IDs reais no Linear: TEC-1..4 já eram issues de onboarding do time, então estas saíram
+como TEC-5..8. Label `serial` em TEC-5/6/7.
 
-- [ ] **TEC-1** — Erro de login visível + `lib/authErrors.ts` + mensagens PT.
+- [ ] **TEC-5** — Erro de login visível + `lib/authErrors.ts` + mensagens PT.
       `App.tsx` (handleLogin sem isLoading), `AuthScreen.tsx`, teste do test-specialist,
       QA: senha errada mostra mensagem. *Independente, entrega primeiro.*
-- [ ] **TEC-2** — "Esqueci minha senha": modo forgot na `AuthScreen` + `api.requestPasswordReset`.
-      `blocked by TEC-1` (mesmo arquivo).
-- [ ] **TEC-3** — `ResetPasswordScreen` + detecção do hash de recovery no `App.tsx` +
-      `api.completePasswordReset`. `blocked by TEC-2`. **QA no browser obrigatório**
+- [ ] **TEC-6** — "Esqueci minha senha": modo forgot na `AuthScreen` + `api.requestPasswordReset`.
+      `blocked by TEC-5` (mesmo arquivo).
+- [ ] **TEC-7** — `ResetPasswordScreen` + detecção do hash de recovery no `App.tsx` +
+      `api.completePasswordReset`. `blocked by TEC-6`. **QA no browser obrigatório**
       (fluxo real de e-mail, usar staging/preview).
-- [ ] **TEC-4** — (config, humano) Redirect URLs no Supabase. `blocked by` nada; fazer antes do deploy da TEC-3.
+- [ ] **TEC-8** — (config, humano) Redirect URLs no Supabase. `blocked by` nada; fazer antes do deploy da TEC-7.
 
 ## Mudanças pós-aprovação
 (nada ainda)

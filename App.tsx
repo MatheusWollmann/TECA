@@ -347,15 +347,12 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const handleLogin = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      await api.login(email, password);
-      await refreshData();
-      setCurrentPage(Page.Home);
-      setShowAuth(false);
-    } finally {
-      setIsLoading(false);
-    }
+    // Não mexe no isLoading global: isso desmontaria a AuthScreen e o erro
+    // (setError no catch da AuthScreen) rodaria numa instância morta. Ver spec 0003.
+    await api.login(email, password);
+    await refreshData();
+    setCurrentPage(Page.Home);
+    setShowAuth(false);
   };
 
   const handleLogout = async () => {
