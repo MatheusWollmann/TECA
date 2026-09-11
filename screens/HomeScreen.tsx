@@ -11,7 +11,6 @@ interface HomeScreenProps {
   prayers: Prayer[];
   onSelectPrayer: (prayerId: string) => void;
   onSelectCirculo: (circuloId: string) => void;
-  onAddScheduledPrayer: (time: string, prayerId: string, label?: string) => void;
   onRemoveScheduledPrayer: (scheduleItemId: string) => void;
   onToggleScheduledPrayer: (scheduleItemId: string) => void;
   onPostReaction: (circuloId: string, postId: string, emoji: string) => void;
@@ -108,7 +107,7 @@ const SocialPostCard: React.FC<{
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ 
     user, dailyPrayer, circulos, prayers, 
-    onSelectPrayer, onSelectCirculo, onAddScheduledPrayer, onRemoveScheduledPrayer, onToggleScheduledPrayer, onPostReaction
+    onSelectPrayer, onSelectCirculo, onRemoveScheduledPrayer, onToggleScheduledPrayer, onPostReaction
 }) => {
   // Home agora é apenas visualizadora do cronograma; criação/edição de horários acontece no Perfil.
   const [celebratingId, setCelebratingId] = useState<string | null>(null);
@@ -339,7 +338,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     })
                 ) : (
                   <div className="py-2 text-[11px] font-medium text-gray-400 italic">
-                    Nenhum horário de oração para hoje. Comece adicionando um acima.
+                    Nenhum horário de oração para hoje. Monte seu cronograma no Perfil.
                   </div>
                 )}
               </div>

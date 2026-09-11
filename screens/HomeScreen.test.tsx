@@ -37,7 +37,6 @@ function makeProps() {
     prayers: [],
     onSelectPrayer: vi.fn(),
     onSelectCirculo: vi.fn(),
-    onAddScheduledPrayer: vi.fn(),
     onRemoveScheduledPrayer: vi.fn(),
     onToggleScheduledPrayer: vi.fn(),
     onPostReaction: vi.fn(),
@@ -57,7 +56,7 @@ describe('HomeScreen', () => {
 
     expect(screen.getByText(/Cronograma diário/)).toBeInTheDocument();
     expect(
-      screen.getByText('Nenhum horário de oração para hoje. Comece adicionando um acima.'),
+      screen.getByText('Nenhum horário de oração para hoje. Monte seu cronograma no Perfil.'),
     ).toBeInTheDocument();
   });
 });

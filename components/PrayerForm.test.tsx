@@ -3,11 +3,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RichTextEditor } from './PrayerForm';
 
-// Contrato da spec 0002 (Grupo D): `onPrayerLink` do `RichTextEditor` passa a ser
-// opcional. Renderizar sem essa prop não pode lançar.
+// Contrato da spec 0002 (Grupo D): `RichTextEditor` é um textarea rotulado simples.
+// As props mortas `showPrayerLink`/`onPrayerLink` (nunca lidas, sem botão associado)
+// foram removidas. Renderizar só com value/onChange/label não pode lançar.
 
 describe('RichTextEditor', () => {
-  it('renderiza sem onPrayerLink, mostrando o label e o textarea', () => {
+  it('renderiza mostrando o label e o textarea', () => {
     expect(() =>
       render(<RichTextEditor label="Texto" value="" onChange={vi.fn()} />),
     ).not.toThrow();
