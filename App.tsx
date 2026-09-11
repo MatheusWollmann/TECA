@@ -14,6 +14,7 @@ import DevotionDetailScreen from './screens/DevotionDetailScreen';
 import EditPrayerScreen from './screens/EditPrayerScreen';
 import EditorReviewScreen from './screens/EditorReviewScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import CirculoNav from './components/CirculoNav';
 import { LoaderIcon, BookOpenIcon, UsersIcon, CalendarIcon, HeartIcon, CrossIcon, XIcon, ArrowLeftIcon } from './components/Icons';
 import { PRAYER_CATEGORIES } from './constants';
@@ -280,6 +281,8 @@ const App: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [publicSelectedPrayer, setPublicSelectedPrayer] = useState<Prayer | null>(null);
   const [showPublicCatalog, setShowPublicCatalog] = useState<'all' | 'devotions' | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<'valid' | 'invalid' | null>(null);
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'forgot'>('login');
 
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
@@ -290,6 +293,18 @@ const App: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
+        const hash = window.location.hash;
+        const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+        const isRecoveryAttempt = hashParams.get('type') === 'recovery' || hashParams.has('error');
+        if (isRecoveryAttempt) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          const ok = hashParams.has('error') ? false : await api.establishRecoverySession(hash);
+          if (!cancelled) {
+            setRecoveryStatus(ok ? 'valid' : 'invalid');
+            setIsLoading(false);
+          }
+          return;
+        }
         const sessionUser = await api.restoreSession();
         if (cancelled) return;
         if (sessionUser) {
@@ -353,6 +368,18 @@ const App: React.FC = () => {
     await refreshData();
     setCurrentPage(Page.Home);
     setShowAuth(false);
+  };
+
+  const handleRecoveryComplete = async () => {
+    await refreshData();
+    setRecoveryStatus(null);
+    setCurrentPage(Page.Home);
+  };
+
+  const handleRequestNewLinkFromRecovery = () => {
+    setRecoveryStatus(null);
+    setAuthInitialMode('forgot');
+    setShowAuth(true);
   };
 
   const handleLogout = async () => {
@@ -596,10 +623,19 @@ const App: React.FC = () => {
     }
   };
 
+  if (recoveryStatus) {
+    return (
+      <ResetPasswordScreen
+        status={recoveryStatus}
+        onSuccess={handleRecoveryComplete}
+        onRequestNewLink={handleRequestNewLinkFromRecovery}
+      />
+    );
+  }
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark"><LoaderIcon className="w-12 h-12 text-gold-subtle" /></div>;
   if (!user) {
     if (showAuth) {
-      return <AuthScreen onLogin={handleLogin} />;
+      return <AuthScreen onLogin={handleLogin} initialMode={authInitialMode} />;
     }
 
     const publicDevotions = prayers.filter(p => p.isDevotion);

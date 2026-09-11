@@ -8,14 +8,15 @@ import { captureError } from '../lib/observability';
 
 interface AuthScreenProps {
   onLogin: (email: string, password: string) => Promise<void>;
+  initialMode?: 'login' | 'signup' | 'forgot';
 }
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, initialMode }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   // Estado próprio do fluxo de recuperação: independente de isLoggingIn (login/signup)
   // para não haver corrida entre as duas chamadas assíncronas — ver review do PR #8.
   const [isRequestingReset, setIsRequestingReset] = useState(false);
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode ?? 'login');
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
