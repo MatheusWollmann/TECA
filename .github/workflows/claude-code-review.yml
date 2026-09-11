@@ -1,27 +1,24 @@
 name: Claude Code Review
 
+# Prompt próprio em vez do skill empacotado `code-review`: o skill faz uma
+# autotriagem antes de revisar e, num PR real e limpo (#8, TEC-6), decidiu
+# sozinho que "não precisava" comentar e saiu em silêncio total — nem um
+# resumo. Aqui a instrução é explícita: sempre postar exatamente 1 review no
+# PR, mesmo quando a conclusão é "nada relevante", pra nunca mais ficar
+# ambíguo se ele rodou ou não.
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -34,12 +31,48 @@ jobs:
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
+        env:
+          # Pro `gh` (chamado pelo prompt) autenticar com o token padrão do job,
+          # que já tem `pull-requests: write` acima. Independente do token de
+          # app OIDC que a action usa por baixo pros próprios tools dela.
+          GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+          prompt: |
+            Você é o code-reviewer automático do TECA. Revise o PR #${{ github.event.pull_request.number }}
+            do repositório ${{ github.repository }}.
+
+            1. Rode `gh pr view ${{ github.event.pull_request.number }} --json title,body,files,additions,deletions,headRefOid`
+               e `gh pr diff ${{ github.event.pull_request.number }}` para ver o escopo e o diff completo.
+            2. Leia o `CLAUDE.md` do repositório para as convenções do projeto.
+            3. Para todo arquivo tocado que pareça central (ex.: `api.ts`, migrations/RLS, telas de
+               auth), leia o arquivo inteiro — não só o trecho do diff — via Read/Grep.
+            4. Se o título ou os commits do PR referenciam uma task (ex. "TEC-6") e existir spec
+               correspondente em `docs/specs/`, leia a spec e confira se a implementação bate com
+               o contrato descrito nela.
+            5. Procure, nessa ordem de prioridade:
+               - Bugs de correção: lógica errada, race condition, erro engolido, estado inconsistente.
+               - Riscos específicos do TECA (ver `CLAUDE.md`): RLS/policy faltando em tabela nova,
+                 segredo no bundle client, `dangerouslySetInnerHTML` sem sanitização, tela/componente
+                 acessando `supabase` direto em vez de passar por `api.ts`.
+               - Reuso / simplificação / eficiência, só quando o ganho for claro.
+               Não repita o que `tsc`/eslint/prettier já cobrem no CI.
+
+            6. Independente do que achar, **poste exatamente um review no PR, uma única vez**, via
+               `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`
+               (POST, `"event": "COMMENT"`), com:
+               - `commit_id`: o `headRefOid` obtido no passo 1.
+               - `body`: resumo de 1-3 frases do que foi revisado e da conclusão.
+               - `comments`: um item por achado, cada um com `path`, `line` (linha no arquivo novo,
+                 dentro do diff) e `body` explicando o problema e a correção sugerida. Sem achado
+                 relevante → `"comments": []` e diga isso explicitamente no `body`.
+               Escreva esse JSON num arquivo temporário com a ferramenta Write antes de chamar
+               `gh api --input <arquivo>`, pra não ter que escapar aspas na linha de comando.
+
+            Nunca aprove nem solicite mudanças — sempre `"event": "COMMENT"`. Nunca fique em
+            silêncio: mesmo "nada relevante" tem que virar um comentário postado.
+          claude_args: |
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob,Write"
+            --max-turns 40
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-
