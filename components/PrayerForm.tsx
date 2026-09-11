@@ -1,9 +1,7 @@
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Prayer, PrayerCategory, User } from '../types';
 import { PRAYER_CATEGORIES } from '../constants';
-import { BoldIcon, ItalicIcon, ListIcon, BookOpenIcon } from './Icons';
-import Modal from './Modal';
 
 interface PrayerFormProps {
     user: User;
@@ -14,54 +12,11 @@ interface PrayerFormProps {
     isDevotionForm?: boolean;
 }
 
-const SelectPrayerModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    prayers: Prayer[];
-    onSelect: (prayerId: string) => void;
-}> = ({ isOpen, onClose, prayers, onSelect }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const filteredPrayers = prayers.filter(p => !p.isDevotion && p.title.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Lincar Oração">
-            <div className="space-y-4">
-                <input
-                    type="text"
-                    placeholder="Buscar oração pelo título..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-gold-subtle focus:outline-none"
-                />
-                <div className="max-h-80 overflow-y-auto pr-2">
-                    <ul className="space-y-1">
-                    {filteredPrayers.length > 0 ? filteredPrayers.map(prayer => (
-                        <li key={prayer.id}>
-                        <button 
-                            onClick={() => { onSelect(prayer.id); onClose(); }} 
-                            className="w-full text-left p-3 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            <p className="font-semibold text-gray-800 dark:text-gray-100">{prayer.title}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{prayer.category}</p>
-                        </button>
-                        </li>
-                    )) : (
-                        <p className="text-center text-gray-500 dark:text-gray-400 py-4">Nenhuma oração encontrada.</p>
-                    )}
-                    </ul>
-                </div>
-            </div>
-        </Modal>
-    );
-};
-
-export const RichTextEditor: React.FC<{ 
-    value: string; 
-    onChange: (value: string) => void; 
-    label: string; 
+export const RichTextEditor: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    label: string;
     rows?: number;
-    showPrayerLink?: boolean;
-    onPrayerLink: () => void;
 }> = ({ value, onChange, label, rows = 6 }) => {
     return (
         <div>
@@ -85,15 +40,6 @@ const PrayerForm: React.FC<PrayerFormProps> = ({ user, prayers, initialData, onS
     const [category, setCategory] = useState<PrayerCategory>(initialData?.category || PrayerCategory.Diarias);
     const [tags, setTags] = useState(initialData?.tags?.join(', ') || '');
     const [parentPrayerId, setParentPrayerId] = useState(initialData?.parentPrayerId || '');
-    const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
-    const textRef = useRef<HTMLTextAreaElement>(null);
-
-
-    const handleInsertPrayerLink = (prayerId: string) => {
-        const link = `[prayer:${prayerId}]`;
-        // This is a simplified insertion, a more robust solution would use cursor position
-        setText(currentText => `${currentText}\n${link}`);
-    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -111,13 +57,6 @@ const PrayerForm: React.FC<PrayerFormProps> = ({ user, prayers, initialData, onS
     const availableParentPrayers = prayers.filter(p => p.id !== initialData?.id);
 
     return (
-        <>
-            <SelectPrayerModal
-                isOpen={isPrayerModalOpen}
-                onClose={() => setIsPrayerModalOpen(false)}
-                prayers={prayers}
-                onSelect={handleInsertPrayerLink}
-            />
             <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -137,21 +76,11 @@ const PrayerForm: React.FC<PrayerFormProps> = ({ user, prayers, initialData, onS
                 </div>
                 
                 <div className="space-y-2">
-                    <RichTextEditor 
-                        label={isDevotionForm ? "Texto ou roteiro da devoção" : "Texto da oração"} 
-                        value={text} 
-                        onChange={setText} 
-                        showPrayerLink={isDevotionForm}
-                        onPrayerLink={() => setIsPrayerModalOpen(true)}
+                    <RichTextEditor
+                        label={isDevotionForm ? "Texto ou roteiro da devoção" : "Texto da oração"}
+                        value={text}
+                        onChange={setText}
                     />
-                    {isDevotionForm && (
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                            Use o botão com o ícone de livro para inserir partes da devoção, como
-                            {' '}
-                            <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px]">[prayer:p1]</code>,
-                            e elas aparecerão automaticamente na leitura.
-                        </p>
-                    )}
                 </div>
 
                 {!isDevotionForm && (
@@ -161,7 +90,6 @@ const PrayerForm: React.FC<PrayerFormProps> = ({ user, prayers, initialData, onS
                             value={latinText}
                             onChange={setLatinText}
                             rows={4}
-                            onPrayerLink={() => {}}
                         />
                         <p className="text-[11px] text-gray-400 dark:text-gray-500">
                             Use apenas se fizer sentido para a oração (ex.: &quot;Ave Maria&quot;, &quot;Credo&quot;).
@@ -235,7 +163,6 @@ const PrayerForm: React.FC<PrayerFormProps> = ({ user, prayers, initialData, onS
                     </button>
                 </div>
             </form>
-        </>
     );
 };
 

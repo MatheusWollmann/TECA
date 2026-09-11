@@ -606,7 +606,7 @@ export const api = {
     }
     const { error: e2 } = await supabase
       .from('profiles')
-      .update({ graces, total_prayers, streak, level, history })
+      .update({ graces, total_prayers: totalPrayers, streak, level, history })
       .eq('id', userId);
     if (e2) throw e2;
     return { graces, level, totalPrayers, streak };
@@ -744,7 +744,7 @@ export const api = {
     assertConfigured();
     const { data: c } = await supabase.from('circulos').select('moderator_ids, leader_id').eq('id', cid).single();
     if (!c) return fetchCirculoById(cid);
-    let mods = ([...(c as { moderator_ids: string[] }).moderator_ids] as string[]) || [];
+    let mods = [...((c as { moderator_ids: string[] | null }).moderator_ids ?? [])];
     const leader = (c as { leader_id: string }).leader_id;
     if (isModerator) {
       if (!mods.includes(mid)) mods.push(mid);
