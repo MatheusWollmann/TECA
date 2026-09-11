@@ -38,8 +38,8 @@ Detalhes em `docs/WORKFLOW.md`. Resumo:
 3. Por task, 1 worktree (Conductor): `/implement-task <TASK-ID>` — `react-engineer` + `test-specialist` alinham o contrato e trabalham em paralelo.
 4. `/qa` — `qa-tester` sobe o dev server e testa no browser real. Bug → volta ao passo 3.
 5. `/ship-check` — `security-reviewer` + `npm run check` (types + lint + test) + `npm run build`. Falha → volta.
-6. Você revisa o diff e abre o PR. CI roda (`.github/workflows/ci.yml`).
-7. CI verde + QA + teste manual → merge → Vercel faz o deploy.
+6. Você revisa o diff e abre o PR. Rodam em paralelo: o CI (`ci.yml`, gate bloqueante) e o `code-reviewer` (`claude-code-review.yml`, consultivo — comenta inline).
+7. CI verde + comentários do `code-reviewer` endereçados + QA + teste manual → merge → Vercel faz o deploy.
 8. Teste manual em prod → observa Sentry + PostHog → novas ideias → volta ao passo 1.
 
 ### Agentes (`.claude/agents/`)
@@ -51,6 +51,9 @@ Detalhes em `docs/WORKFLOW.md`. Resumo:
 | `test-specialist` | Vitest + Testing Library, define o contrato de teste antes do código |
 | `qa-tester` | Testa no browser real via MCP, reporta bugs reproduzíveis |
 | `security-reviewer` | Revisa o diff: RLS, auth, XSS, segredos no bundle |
+| `code-reviewer` | Não é subagente local — é o skill `code-review` rodando no CI (`.github/workflows/claude-code-review.yml`) ao abrir/atualizar PR. Revisa correção + reuso/simplificação/eficiência e comenta inline |
+
+Marcar `@claude` num comentário de PR/issue aciona o `.github/workflows/claude.yml` (implementa, comita, abre PR).
 
 ## Comandos
 - `npm run dev` — servidor local (porta 3000)
