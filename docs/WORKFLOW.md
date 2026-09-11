@@ -27,11 +27,11 @@ testado, reduzir tickets de bug e suporte.
 
 ## Pré-requisitos (uma vez)
 
-1. **Linear** — projeto criado. MCP do Linear conectado ao Claude Code:
+1. **Linear** — workspace/time criado. MCP oficial da Linear (servidor remoto, OAuth):
    ```
-   claude mcp add --scope project linear -- npx -y @linear/mcp-server
+   claude mcp add --transport http --scope project linear https://mcp.linear.app/mcp
    ```
-   (confirme o comando atual em https://linear.app/docs — o pacote muda de nome às vezes)
+   Depois rode `/mcp` no Claude Code para autenticar no navegador.
 2. **Conductor** — app instalado, repo aberto, integração com Linear e GitHub ativada.
 3. **Browser MCP** para o `qa-tester`:
    ```

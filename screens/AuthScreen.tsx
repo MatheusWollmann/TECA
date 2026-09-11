@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { LoaderIcon } from '../components/Icons';
 import { api } from '../api';
+import { toAuthErrorInfo } from '../lib/authErrors';
+import { track } from '../lib/analytics';
 
 interface AuthScreenProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -12,6 +14,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const handleAuth = async () => {
     setIsLoggingIn(true);
@@ -27,7 +30,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
         await onLogin(formData.email, formData.password);
       }
     } catch (err: any) {
-      setError(err.message || "Erro ao autenticar. Verifique seus dados.");
+      if (mode === 'login') {
+        const info = toAuthErrorInfo(err);
+        setError(info.message);
+        // TODO analytics: initAnalytics() ainda não é chamado no index.tsx (fora do escopo TEC-5) — track() é no-op até lá.
+        track('auth_login_failed', { reason: info.reason });
+        passwordRef.current?.focus();
+      } else {
+        setError(err.message || "Erro ao autenticar. Verifique seus dados.");
+      }
     } finally {
       setIsLoggingIn(false);
     }
@@ -41,11 +52,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             <p className="text-gray-500 dark:text-gray-400 mt-3 text-lg italic">"Onde a oração encontra a comunidade"</p>
         </div>
         
-        {error && (
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm text-center font-medium">
-                {error}
-            </div>
-        )}
+        <div aria-live="polite" role="alert">
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm text-center font-medium">
+                    {error}
+                </div>
+            )}
+        </div>
 
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleAuth(); }}>
             {mode === 'signup' && (
@@ -74,9 +87,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             </div>
             <div>
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 ml-1">Senha</label>
-                <input 
-                    type="password" 
-                    className="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-transparent focus:border-gold-subtle focus:bg-white dark:focus:bg-gray-900 rounded-2xl shadow-sm outline-none transition-all placeholder-gray-400 dark:placeholder-gray-500" 
+                <input
+                    ref={passwordRef}
+                    type="password"
+                    className="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-transparent focus:border-gold-subtle focus:bg-white dark:focus:bg-gray-900 rounded-2xl shadow-sm outline-none transition-all placeholder-gray-400 dark:placeholder-gray-500"
                     placeholder="********"
                     value={formData.password}
                     onChange={e => setFormData({...formData, password: e.target.value})}
