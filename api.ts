@@ -348,6 +348,13 @@ export const api = {
     if (error) throw error;
   },
 
+  async requestPasswordReset(email: string): Promise<void> {
+    assertConfigured();
+    const redirectTo = `${window.location.origin}/`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  },
+
   async logout(): Promise<void> {
     if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();

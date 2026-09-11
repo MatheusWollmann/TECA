@@ -2,10 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AuthScreen from './AuthScreen';
+import { supabaseMock } from '../test/setup';
 
 // Contrato: TEC-5 / docs/specs/0003-login-erro-visivel-e-recuperar-senha.md (item 1).
 // Falha no login (modo "login") tem que mostrar a mensagem PT na caixa de erro,
 // registrar `auth_login_failed` no PostHog e NÃO desmontar a tela.
+//
+// Contrato: TEC-6 (item 2 da spec) — modo "forgot": link "Esqueci minha senha" no
+// login → form de e-mail → api.requestPasswordReset (só supabase é mockado, via
+// test/setup.ts; AuthScreen chama `api` direto, sem prop) → SEMPRE a mensagem
+// neutra (sucesso ou erro do mock dão o mesmo resultado) + track de
+// `auth_password_reset_requested` + "← Voltar para o login".
 
 const track = vi.fn();
 vi.mock('../lib/analytics', () => ({
@@ -21,6 +28,7 @@ async function preencherEEntrar(email = 'joana@teca.app.br', senha = 'senha-erra
 
 beforeEach(() => {
   track.mockClear();
+  supabaseMock.auth.resetPasswordForEmail.mockReset();
 });
 
 describe('AuthScreen — erro de login visível', () => {
@@ -93,5 +101,79 @@ describe('AuthScreen — erro de login visível', () => {
     await screen.findByText('E-mail ou senha incorretos.');
 
     expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'polite');
+  });
+});
+
+const MENSAGEM_NEUTRA =
+  'Se existe uma conta com esse e-mail, enviamos um link para redefinir a senha.';
+
+async function irParaEsqueciSenha() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Esqueci minha senha' }));
+  return user;
+}
+
+describe('AuthScreen — modo forgot (recuperar senha)', () => {
+  it('mostra o campo de e-mail e o botão de enviar ao clicar em "Esqueci minha senha"', async () => {
+    render(<AuthScreen onLogin={vi.fn()} />);
+
+    await irParaEsqueciSenha();
+
+    expect(screen.getByPlaceholderText('exemplo@email.com')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar link de recuperação' })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('********')).not.toBeInTheDocument();
+  });
+
+  it('mostra a mensagem neutra e registra auth_password_reset_requested quando o pedido dá certo', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+
+    expect(await screen.findByText(MENSAGEM_NEUTRA)).toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith('auth_password_reset_requested');
+  });
+
+  it('mostra a MESMA mensagem neutra quando o pedido falha, sem travar em loading nem revelar o erro', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({
+      error: new Error('E-mail não encontrado'),
+    });
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'inexistente@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+
+    expect(await screen.findByText(MENSAGEM_NEUTRA)).toBeInTheDocument();
+    expect(screen.queryByText('E-mail não encontrado')).not.toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith('auth_password_reset_requested');
+  });
+
+  it('volta para o form de login normal ao clicar "← Voltar para o login" no form de recuperação', async () => {
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.click(screen.getByRole('button', { name: '← Voltar para o login' }));
+
+    expect(screen.getByPlaceholderText('********')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+  });
+
+  it('volta para o form de login normal ao clicar "← Voltar para o login" depois do sucesso', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+    await screen.findByText(MENSAGEM_NEUTRA);
+
+    await user.click(screen.getByRole('button', { name: '← Voltar para o login' }));
+
+    expect(screen.getByPlaceholderText('********')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+    expect(screen.queryByText(MENSAGEM_NEUTRA)).not.toBeInTheDocument();
   });
 });
