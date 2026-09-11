@@ -19,6 +19,11 @@ vi.mock('../lib/analytics', () => ({
   track: (...args: unknown[]) => track(...args),
 }));
 
+const captureError = vi.fn();
+vi.mock('../lib/observability', () => ({
+  captureError: (...args: unknown[]) => captureError(...args),
+}));
+
 async function preencherEEntrar(email = 'joana@teca.app.br', senha = 'senha-errada') {
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText('exemplo@email.com'), email);
@@ -28,6 +33,7 @@ async function preencherEEntrar(email = 'joana@teca.app.br', senha = 'senha-erra
 
 beforeEach(() => {
   track.mockClear();
+  captureError.mockClear();
   supabaseMock.auth.resetPasswordForEmail.mockReset();
 });
 
@@ -136,10 +142,9 @@ describe('AuthScreen — modo forgot (recuperar senha)', () => {
     expect(track).toHaveBeenCalledWith('auth_password_reset_requested');
   });
 
-  it('mostra a MESMA mensagem neutra quando o pedido falha, sem travar em loading nem revelar o erro', async () => {
-    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({
-      error: new Error('E-mail não encontrado'),
-    });
+  it('mostra a MESMA mensagem neutra quando o pedido falha, sem travar em loading nem revelar o erro — mas registra no Sentry', async () => {
+    const erroReal = new Error('E-mail não encontrado');
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: erroReal });
     render(<AuthScreen onLogin={vi.fn()} />);
     const user = await irParaEsqueciSenha();
 
@@ -149,6 +154,50 @@ describe('AuthScreen — modo forgot (recuperar senha)', () => {
     expect(await screen.findByText(MENSAGEM_NEUTRA)).toBeInTheDocument();
     expect(screen.queryByText('E-mail não encontrado')).not.toBeInTheDocument();
     expect(track).toHaveBeenCalledWith('auth_password_reset_requested');
+    // A UI não revela o erro, mas ele não pode desaparecer silenciosamente do observability.
+    expect(captureError).toHaveBeenCalledWith(erroReal, { flow: 'request_password_reset' });
+  });
+
+  it('reabrir "Esqueci minha senha" depois de voltar mostra o form vazio, não o sucesso da tentativa anterior', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+    await screen.findByText(MENSAGEM_NEUTRA);
+
+    await user.click(screen.getByRole('button', { name: '← Voltar para o login' }));
+    await irParaEsqueciSenha();
+
+    expect(screen.getByRole('button', { name: 'Enviar link de recuperação' })).toBeInTheDocument();
+    expect(screen.queryByText(MENSAGEM_NEUTRA)).not.toBeInTheDocument();
+  });
+
+  it('ignora uma resposta atrasada se o usuário já saiu do modo forgot antes dela resolver', async () => {
+    let resolveReset!: (value: { error: null }) => void;
+    supabaseMock.auth.resetPasswordForEmail.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveReset = resolve;
+      }),
+    );
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+
+    // Ainda em voo: volta pro login e reabre o forgot antes da promise resolver.
+    await user.click(screen.getByRole('button', { name: '← Voltar para o login' }));
+    await irParaEsqueciSenha();
+    expect(screen.getByRole('button', { name: 'Enviar link de recuperação' })).toBeInTheDocument();
+
+    // A chamada atrasada resolve agora — não pode "vazar" pro estado atual.
+    resolveReset({ error: null });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByRole('button', { name: 'Enviar link de recuperação' })).toBeInTheDocument();
+    expect(screen.queryByText(MENSAGEM_NEUTRA)).not.toBeInTheDocument();
   });
 
   it('volta para o form de login normal ao clicar "← Voltar para o login" no form de recuperação', async () => {

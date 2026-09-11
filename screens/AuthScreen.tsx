@@ -4,6 +4,7 @@ import { LoaderIcon } from '../components/Icons';
 import { api } from '../api';
 import { toAuthErrorInfo } from '../lib/authErrors';
 import { track } from '../lib/analytics';
+import { captureError } from '../lib/observability';
 
 interface AuthScreenProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -11,12 +12,20 @@ interface AuthScreenProps {
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  // Estado próprio do fluxo de recuperação: independente de isLoggingIn (login/signup)
+  // para não haver corrida entre as duas chamadas assíncronas — ver review do PR #8.
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
+  // Incrementado sempre que o usuário entra/sai do modo forgot; invalida o `finally`
+  // de uma chamada de requestPasswordReset que ainda estava em voo quando isso
+  // aconteceu, evitando que uma resposta atrasada "conclua" uma tentativa que o
+  // usuário já abandonou — ver review do PR #8.
+  const forgotRequestId = useRef(0);
 
   const handleAuth = async () => {
     setIsLoggingIn(true);
@@ -47,16 +56,47 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   };
 
   const handleForgotSubmit = async () => {
-    setIsLoggingIn(true);
+    const requestId = ++forgotRequestId.current;
+    setIsRequestingReset(true);
     try {
       await api.requestPasswordReset(forgotEmail);
-    } catch {
-      // Intencional: qualquer resultado leva ao mesmo estado neutro (não revela se a conta existe, nem trava em loading).
+    } catch (err) {
+      // A UI nunca revela o erro real (evita enumeração de conta — sempre cai no
+      // mesmo estado neutro abaixo), mas registramos no Sentry pra não mascarar uma
+      // falha de verdade (ex.: Supabase mal configurado, rede fora) — sem isso o
+      // funil de recuperação de senha falharia 100% silenciosamente.
+      captureError(err, { flow: 'request_password_reset' });
     } finally {
-      setIsLoggingIn(false);
-      track('auth_password_reset_requested');
-      setForgotSubmitted(true);
+      // O indicador de loading sempre reflete se HÁ uma chamada em voo — some assim
+      // que ela resolve, mesmo que o usuário já tenha saído deste modo.
+      setIsRequestingReset(false);
+      // Já o resultado (mensagem de sucesso + telemetria) só se aplica se o usuário
+      // ainda estiver na MESMA tentativa: se saiu do modo forgot (voltou pro login
+      // ou reabriu) antes desta chamada resolver, forgotRequestId mudou — ignora a
+      // resposta atrasada, ou uma tentativa abandonada "concluiria" uma nova.
+      if (forgotRequestId.current === requestId) {
+        track('auth_password_reset_requested');
+        setForgotSubmitted(true);
+      }
     }
+  };
+
+  const openForgotMode = () => {
+    forgotRequestId.current++;
+    setIsRequestingReset(false);
+    setForgotEmail('');
+    setForgotSubmitted(false);
+    setError('');
+    setMode('forgot');
+  };
+
+  const backToLogin = () => {
+    forgotRequestId.current++;
+    setIsRequestingReset(false);
+    setForgotEmail('');
+    setForgotSubmitted(false);
+    setError('');
+    setMode('login');
   };
 
   return (
@@ -90,7 +130,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                     <div className="text-center">
                         <button
                             type="button"
-                            onClick={() => { setMode('login'); setForgotEmail(''); setForgotSubmitted(false); setError(''); }}
+                            onClick={backToLogin}
                             className="text-sm text-gray-500 dark:text-gray-400 hover:underline"
                         >
                             ← Voltar para o login
@@ -113,16 +153,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
                     <button
                         type="submit"
-                        disabled={isLoggingIn}
+                        disabled={isRequestingReset}
                         className="w-full bg-gold-subtle text-white font-bold py-4 px-4 rounded-2xl hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-gold-subtle/20 transition-all flex items-center justify-center disabled:opacity-70"
                     >
-                        {isLoggingIn ? <LoaderIcon className="w-6 h-6 mr-2" /> : 'Enviar link de recuperação'}
+                        {isRequestingReset ? <LoaderIcon className="w-6 h-6 mr-2" /> : 'Enviar link de recuperação'}
                     </button>
 
                     <div className="text-center">
                         <button
                             type="button"
-                            onClick={() => { setMode('login'); setForgotEmail(''); setForgotSubmitted(false); setError(''); }}
+                            onClick={backToLogin}
                             className="text-sm text-gray-500 dark:text-gray-400 hover:underline"
                         >
                             ← Voltar para o login
@@ -181,7 +221,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                     <div className="text-right">
                         <button
                             type="button"
-                            onClick={() => { setMode('forgot'); setError(''); }}
+                            onClick={openForgotMode}
                             className="text-sm font-bold text-gold-subtle hover:underline decoration-2 underline-offset-4"
                         >
                             Esqueci minha senha
