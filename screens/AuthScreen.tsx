@@ -67,14 +67,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       // funil de recuperação de senha falharia 100% silenciosamente.
       captureError(err, { flow: 'request_password_reset' });
     } finally {
-      // O indicador de loading sempre reflete se HÁ uma chamada em voo — some assim
-      // que ela resolve, mesmo que o usuário já tenha saído deste modo.
-      setIsRequestingReset(false);
-      // Já o resultado (mensagem de sucesso + telemetria) só se aplica se o usuário
-      // ainda estiver na MESMA tentativa: se saiu do modo forgot (voltou pro login
-      // ou reabriu) antes desta chamada resolver, forgotRequestId mudou — ignora a
-      // resposta atrasada, ou uma tentativa abandonada "concluiria" uma nova.
+      // Só mexe em isRequestingReset/track/forgotSubmitted se esta ainda for a
+      // tentativa "atual" (forgotRequestId não mudou desde o início da chamada).
+      // Se o usuário saiu do modo forgot e voltou, ou reenviou, openForgotMode/
+      // backToLogin já zeraram isRequestingReset na hora — uma resposta atrasada
+      // daqui não pode nem reabrir o botão de uma tentativa nova que já está em
+      // voo, nem "concluir" com sucesso uma tentativa que o usuário abandonou.
       if (forgotRequestId.current === requestId) {
+        setIsRequestingReset(false);
         track('auth_password_reset_requested');
         setForgotSubmitted(true);
       }

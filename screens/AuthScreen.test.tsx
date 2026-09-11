@@ -200,6 +200,45 @@ describe('AuthScreen — modo forgot (recuperar senha)', () => {
     expect(screen.queryByText(MENSAGEM_NEUTRA)).not.toBeInTheDocument();
   });
 
+  it('não apaga o loading de uma tentativa nova quando uma tentativa antiga e abandonada resolve depois', async () => {
+    let resolveA!: (value: { error: null }) => void;
+    let resolveB!: (value: { error: null }) => void;
+    supabaseMock.auth.resetPasswordForEmail
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveA = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveB = resolve;
+        }),
+      );
+    render(<AuthScreen onLogin={vi.fn()} />);
+    const user = await irParaEsqueciSenha();
+
+    // Tentativa A: envia e sai antes de resolver.
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    await user.click(screen.getByRole('button', { name: 'Enviar link de recuperação' }));
+    await user.click(screen.getByRole('button', { name: '← Voltar para o login' }));
+
+    // Tentativa B: reabre e envia de novo — ainda em voo.
+    await irParaEsqueciSenha();
+    await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'marta@teca.app.br');
+    const botaoEnviarB = screen.getByRole('button', { name: 'Enviar link de recuperação' });
+    await user.click(botaoEnviarB);
+
+    // A (abandonada) resolve agora — não pode desabilitar o loading de B, que segue em voo.
+    resolveA({ error: null });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(botaoEnviarB).toBeDisabled();
+    expect(screen.queryByText(MENSAGEM_NEUTRA)).not.toBeInTheDocument();
+
+    // B resolve de verdade — agora sim mostra o sucesso.
+    resolveB({ error: null });
+    expect(await screen.findByText(MENSAGEM_NEUTRA)).toBeInTheDocument();
+  });
+
   it('volta para o form de login normal ao clicar "← Voltar para o login" no form de recuperação', async () => {
     render(<AuthScreen onLogin={vi.fn()} />);
     const user = await irParaEsqueciSenha();
