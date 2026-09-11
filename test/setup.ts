@@ -14,6 +14,7 @@ export const supabaseMock = {
     onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
     signInWithPassword: vi.fn(),
     signUp: vi.fn(),
+    resetPasswordForEmail: vi.fn(),
     signOut: vi.fn().mockResolvedValue({ error: null }),
   },
   from: vi.fn(() => supabaseMock),

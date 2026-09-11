@@ -15,6 +15,7 @@ beforeEach(() => {
   supabaseMock.delete.mockClear();
   supabaseMock.update.mockReset().mockReturnThis();
   supabaseMock.single.mockReset().mockResolvedValue({ data: null, error: null });
+  supabaseMock.auth.resetPasswordForEmail.mockReset();
   // fetchCirculoById usa `.maybeSingle()`, que não está no mock base.
   (supabaseMock as unknown as Record<string, unknown>).maybeSingle = vi
     .fn()
@@ -38,6 +39,30 @@ describe('api.updateUserGraces', () => {
     expect(updateArg.total_prayers).toBe(6);
     expect(updateArg.total_prayers).not.toBeUndefined();
     expect(updateArg.graces).toBe(30);
+  });
+});
+
+describe('api.requestPasswordReset', () => {
+  it('chama resetPasswordForEmail com o e-mail e um redirectTo não vazio', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
+
+    await api.requestPasswordReset('joana@teca.app.br');
+
+    expect(supabaseMock.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+      'joana@teca.app.br',
+      expect.objectContaining({ redirectTo: expect.any(String) }),
+    );
+    const [, options] = supabaseMock.auth.resetPasswordForEmail.mock.calls.at(-1) as [
+      string,
+      { redirectTo: string },
+    ];
+    expect(options.redirectTo.length).toBeGreaterThan(0);
+  });
+
+  it('rejeita quando o Supabase retorna erro, propagando pra quem chamou decidir', async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: new Error('boom') });
+
+    await expect(api.requestPasswordReset('joana@teca.app.br')).rejects.toThrow('boom');
   });
 });
 
