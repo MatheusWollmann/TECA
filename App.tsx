@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Prayer, Page, Circulo, UserRole, PrayerCategory, PrayerEditSuggestion } from './types';
 import { api } from './api';
+import { captureError } from './lib/observability';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import AuthScreen from './screens/AuthScreen';
@@ -299,6 +300,14 @@ const App: React.FC = () => {
         if (isRecoveryAttempt) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           const ok = hashParams.has('error') ? false : await api.establishRecoverySession(hash);
+          if (!ok) {
+            // A UI só mostra "Link expirado" (nenhum detalhe técnico) — registra o
+            // motivo real pra não mascarar um link expirando com frequência anormal.
+            captureError(new Error('Link de recuperação de senha inválido ou expirado'), {
+              flow: 'establish_recovery_session',
+              errorCode: hashParams.get('error_code') ?? undefined,
+            });
+          }
           if (!cancelled) {
             setRecoveryStatus(ok ? 'valid' : 'invalid');
             setIsLoading(false);
