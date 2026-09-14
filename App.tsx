@@ -296,14 +296,19 @@ const App: React.FC = () => {
       try {
         const hash = window.location.hash;
         const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+        // O Supabase usa o mesmo formato de erro (#error=...&error_code=...,
+        // sem 'type=') pra qualquer link de ação expirado/inválido — recovery,
+        // confirmação de cadastro, convite, magic link. Não dá pra saber a
+        // origem só pelo hash; tratamos como recovery (única tela que existe
+        // pra isso hoje) mas sem afirmar na UI que era exatamente esse o caso.
         const isRecoveryAttempt = hashParams.get('type') === 'recovery' || hashParams.has('error');
         if (isRecoveryAttempt) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           const ok = hashParams.has('error') ? false : await api.establishRecoverySession(hash);
           if (!ok) {
-            // A UI só mostra "Link expirado" (nenhum detalhe técnico) — registra o
+            // A UI só mostra "Link inválido" (nenhum detalhe técnico) — registra o
             // motivo real pra não mascarar um link expirando com frequência anormal.
-            captureError(new Error('Link de recuperação de senha inválido ou expirado'), {
+            captureError(new Error('Link de ação (recovery ou outro) inválido ou expirado'), {
               flow: 'establish_recovery_session',
               errorCode: hashParams.get('error_code') ?? undefined,
             });
@@ -377,6 +382,9 @@ const App: React.FC = () => {
     await refreshData();
     setCurrentPage(Page.Home);
     setShowAuth(false);
+    // authInitialMode pode ter ficado em 'forgot' (fluxo de recovery); sem isso,
+    // um próximo login (após logout) reabriria a AuthScreen direto no modo errado.
+    setAuthInitialMode('login');
   };
 
   const handleRecoveryComplete = async () => {
@@ -391,10 +399,17 @@ const App: React.FC = () => {
     setShowAuth(true);
   };
 
+  const handleBackToLoginFromRecovery = () => {
+    setRecoveryStatus(null);
+    setAuthInitialMode('login');
+    setShowAuth(true);
+  };
+
   const handleLogout = async () => {
     await api.logout();
     setUser(null);
     setEditSuggestions([]);
+    setAuthInitialMode('login');
     try {
       const [p, c] = await Promise.all([api.fetchPublicPrayers(), api.fetchPublicCirculos()]);
       setPrayers(p);
@@ -638,6 +653,7 @@ const App: React.FC = () => {
         status={recoveryStatus}
         onSuccess={handleRecoveryComplete}
         onRequestNewLink={handleRequestNewLinkFromRecovery}
+        onBackToLogin={handleBackToLoginFromRecovery}
       />
     );
   }

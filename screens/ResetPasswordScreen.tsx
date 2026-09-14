@@ -9,9 +9,15 @@ interface ResetPasswordScreenProps {
   status: 'valid' | 'invalid';
   onSuccess: () => void;
   onRequestNewLink: () => void;
+  onBackToLogin: () => void;
 }
 
-const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ status, onSuccess, onRequestNewLink }) => {
+const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
+  status,
+  onSuccess,
+  onRequestNewLink,
+  onBackToLogin,
+}) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -64,14 +70,24 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ status, onSuc
         {status === 'invalid' ? (
           <div className="space-y-4">
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm text-center font-medium">
-              Link expirado. Peça um novo abaixo.
+              Este link está inválido ou expirado.
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+              Se você estava tentando redefinir sua senha, peça um novo link abaixo.
+            </p>
             <button
               type="button"
               onClick={onRequestNewLink}
               className="w-full bg-gold-subtle text-white font-bold py-4 px-4 rounded-2xl hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-gold-subtle/20 transition-all flex items-center justify-center disabled:opacity-70"
             >
-              Pedir novo link
+              Pedir novo link de redefinição
+            </button>
+            <button
+              type="button"
+              onClick={onBackToLogin}
+              className="w-full text-gray-500 dark:text-gray-400 font-semibold py-2 text-sm hover:text-gold-subtle transition-colors"
+            >
+              Voltar para o login
             </button>
           </div>
         ) : (

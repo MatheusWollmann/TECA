@@ -5,7 +5,9 @@ import ResetPasswordScreen from './ResetPasswordScreen';
 import { supabaseMock } from '../test/setup';
 
 // Contrato: TEC-7 / docs/specs/0003-login-erro-visivel-e-recuperar-senha.md (item 3).
-// status="invalid": link expirado + botão "Pedir novo link".
+// status="invalid": link inválido/expirado (mensagem genérica, já que o mesmo hash de
+// erro do Supabase cobre recovery, confirmação de cadastro etc. — review do PR #10)
+// + botão "Pedir novo link de redefinição" + "Voltar para o login".
 // status="valid": form de nova senha (validação client-side) -> api.completePasswordReset
 // -> track('auth_password_reset_completed') -> onSuccess(). ResetPasswordScreen chama
 // `api` direto (sem prop), então só o supabase é mockado, via test/setup.ts — mesmo
@@ -37,30 +39,57 @@ async function preencherSenhas(novaSenha: string, confirmar: string) {
 }
 
 describe('ResetPasswordScreen — link inválido/expirado', () => {
-  it('mostra "Link expirado. Peça um novo abaixo."', () => {
+  it('mostra "Este link está inválido ou expirado."', () => {
     render(
-      <ResetPasswordScreen status="invalid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} />,
+      <ResetPasswordScreen
+        status="invalid"
+        onSuccess={vi.fn()}
+        onRequestNewLink={vi.fn()}
+        onBackToLogin={vi.fn()}
+      />,
     );
 
-    expect(screen.getByText('Link expirado. Peça um novo abaixo.')).toBeInTheDocument();
+    expect(screen.getByText('Este link está inválido ou expirado.')).toBeInTheDocument();
   });
 
-  it('chama onRequestNewLink ao clicar em "Pedir novo link"', async () => {
+  it('chama onRequestNewLink ao clicar em "Pedir novo link de redefinição"', async () => {
     const onRequestNewLink = vi.fn();
     const user = userEvent.setup();
     render(
-      <ResetPasswordScreen status="invalid" onSuccess={vi.fn()} onRequestNewLink={onRequestNewLink} />,
+      <ResetPasswordScreen
+        status="invalid"
+        onSuccess={vi.fn()}
+        onRequestNewLink={onRequestNewLink}
+        onBackToLogin={vi.fn()}
+      />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Pedir novo link' }));
+    await user.click(screen.getByRole('button', { name: 'Pedir novo link de redefinição' }));
 
     expect(onRequestNewLink).toHaveBeenCalled();
+  });
+
+  it('chama onBackToLogin ao clicar em "Voltar para o login"', async () => {
+    const onBackToLogin = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ResetPasswordScreen
+        status="invalid"
+        onSuccess={vi.fn()}
+        onRequestNewLink={vi.fn()}
+        onBackToLogin={onBackToLogin}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Voltar para o login' }));
+
+    expect(onBackToLogin).toHaveBeenCalled();
   });
 });
 
 describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
   it('mostra "A senha precisa ter pelo menos 8 caracteres." e não chama a API quando a senha tem menos de 8 caracteres', async () => {
-    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} />);
+    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 
     await preencherSenhas('1234567', '1234567');
 
@@ -71,7 +100,7 @@ describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
   });
 
   it('mostra "As senhas não coincidem." e não chama a API quando as senhas são diferentes', async () => {
-    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} />);
+    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 
     await preencherSenhas('MinhaSenhaNova1', 'MinhaSenhaNova2');
 
@@ -82,7 +111,7 @@ describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
   it('salva a nova senha, registra auth_password_reset_completed e chama onSuccess quando a API dá certo', async () => {
     supabaseMock.auth.updateUser.mockResolvedValueOnce({ error: null });
     const onSuccess = vi.fn();
-    render(<ResetPasswordScreen status="valid" onSuccess={onSuccess} onRequestNewLink={vi.fn()} />);
+    render(<ResetPasswordScreen status="valid" onSuccess={onSuccess} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 
     await preencherSenhas('MinhaSenhaNova1', 'MinhaSenhaNova1');
 
@@ -95,7 +124,7 @@ describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
     const erroReal = new Error('boom');
     supabaseMock.auth.updateUser.mockResolvedValueOnce({ error: erroReal });
     const onSuccess = vi.fn();
-    render(<ResetPasswordScreen status="valid" onSuccess={onSuccess} onRequestNewLink={vi.fn()} />);
+    render(<ResetPasswordScreen status="valid" onSuccess={onSuccess} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 
     await preencherSenhas('MinhaSenhaNova1', 'MinhaSenhaNova1');
 
@@ -107,7 +136,7 @@ describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
   });
 
   it('anuncia o erro para leitores de tela (role="alert" com aria-live="polite")', async () => {
-    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} />);
+    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 
     await preencherSenhas('1234567', '1234567');
     await screen.findByText('A senha precisa ter pelo menos 8 caracteres.');
