@@ -367,8 +367,16 @@ export const api = {
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token');
     if (!access_token || !refresh_token) return false;
-    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    return !error;
+    try {
+      // Contrato: nunca lança — quem chama (bootstrap do App.tsx) trata isso
+      // como "nunca lança" pra decidir entre a tela de recovery e o fluxo
+      // normal, então um throw real aqui (ex.: falha de rede/storage no
+      // setSession) precisa virar `false`, não escapar pro catch genérico.
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      return !error;
+    } catch {
+      return false;
+    }
   },
 
   async logout(): Promise<void> {

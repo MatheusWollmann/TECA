@@ -117,6 +117,16 @@ describe('api.establishRecoverySession', () => {
 
     expect(resultado).toBe(false);
   });
+
+  it('retorna false (não lança) quando setSession lança de verdade, ex.: falha de rede/storage', async () => {
+    supabaseMock.auth.setSession.mockRejectedValueOnce(new Error('network down'));
+
+    const resultado = await api.establishRecoverySession(
+      '#access_token=abc&refresh_token=xyz&type=recovery',
+    );
+
+    expect(resultado).toBe(false);
+  });
 });
 
 describe('api.updateMemberRole', () => {
