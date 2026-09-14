@@ -84,8 +84,8 @@ describe('App — dispatch do bootstrap a partir do hash da URL', () => {
   });
 });
 
-describe('App — abandonar o fluxo de recovery desloga a sessão pendurada', () => {
-  it('"Pedir novo link" (link inválido) chama api.logout antes de voltar pra AuthScreen', async () => {
+describe('App — abandonar o fluxo de recovery desloga a sessão pendurada (só quando havia uma)', () => {
+  it('"Pedir novo link" com link inválido/expirado NÃO chama api.logout (establishRecoverySession nunca rodou setSession)', async () => {
     window.location.hash = '#error=access_denied&error_code=otp_expired';
     const user = userEvent.setup();
     render(<App />);
@@ -93,7 +93,7 @@ describe('App — abandonar o fluxo de recovery desloga a sessão pendurada', ()
 
     await user.click(screen.getByRole('button', { name: 'Pedir novo link de redefinição' }));
 
-    expect(supabaseMock.auth.signOut).toHaveBeenCalled();
+    expect(supabaseMock.auth.signOut).not.toHaveBeenCalled();
     expect(await screen.findByPlaceholderText('exemplo@email.com')).toBeInTheDocument();
   });
 

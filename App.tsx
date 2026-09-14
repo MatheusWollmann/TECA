@@ -420,11 +420,18 @@ const App: React.FC = () => {
     setCurrentPage(Page.Home);
   };
 
-  // establishRecoverySession já autentica a pessoa (supabase.auth.setSession, que
-  // persiste) só de ela abrir o link do e-mail, antes de trocar a senha de fato.
-  // Sem deslogar aqui, quem abandona o fluxo (link inválido, ou "voltar" sem salvar)
-  // continua de fato autenticado no navegador — achado do code-reviewer no PR #10.
+  // establishRecoverySession autentica a pessoa (supabase.auth.setSession, que
+  // persiste) só quando o hash tem tokens válidos e o Supabase os aceita —
+  // exatamente o caso recoveryStatus === 'valid'. Sem deslogar aqui, quem
+  // abandona esse fluxo (ex.: "Voltar para o login" sem salvar a senha nova)
+  // continua de fato autenticado no navegador — achado do code-reviewer no
+  // PR #10. Mas quando recoveryStatus é 'invalid' (link expirado/#error=...),
+  // establishRecoverySession nunca chegou a rodar setSession — não existe
+  // sessão de recovery pra abandonar, e uma sessão normal preexistente (quem
+  // já estava logado e abriu um link de e-mail velho) não deve ser derrubada
+  // à toa (2º achado do code-reviewer, sobre este mesmo trecho).
   const abandonRecoverySession = async () => {
+    if (recoveryStatus !== 'valid') return;
     try {
       await api.logout();
     } catch {
