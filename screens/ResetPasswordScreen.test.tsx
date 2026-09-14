@@ -135,6 +135,20 @@ describe('ResetPasswordScreen — definir nova senha (status="valid")', () => {
     expect(captureError).toHaveBeenCalledWith(erroReal, { flow: 'complete_password_reset' });
   });
 
+  it('não deixa o usuário num beco sem saída quando a API falha — "Voltar para o login" continua disponível', async () => {
+    supabaseMock.auth.updateUser.mockResolvedValueOnce({ error: new Error('rate limit') });
+    const onBackToLogin = vi.fn();
+    const user = userEvent.setup();
+    render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} onBackToLogin={onBackToLogin} />);
+
+    await preencherSenhas('MinhaSenhaNova1', 'MinhaSenhaNova1');
+    await screen.findByText('Não foi possível salvar a nova senha. Tente de novo.');
+
+    await user.click(screen.getByRole('button', { name: 'Voltar para o login' }));
+
+    expect(onBackToLogin).toHaveBeenCalled();
+  });
+
   it('anuncia o erro para leitores de tela (role="alert" com aria-live="polite")', async () => {
     render(<ResetPasswordScreen status="valid" onSuccess={vi.fn()} onRequestNewLink={vi.fn()} onBackToLogin={vi.fn()} />);
 

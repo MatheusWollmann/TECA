@@ -122,6 +122,13 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
             >
               {isSaving ? <LoaderIcon className="w-6 h-6 mr-2" /> : 'Salvar e entrar'}
             </button>
+            <button
+              type="button"
+              onClick={onBackToLogin}
+              className="w-full text-gray-500 dark:text-gray-400 font-semibold py-2 text-sm hover:text-gold-subtle transition-colors"
+            >
+              Voltar para o login
+            </button>
           </form>
         )}
       </div>
