@@ -33,14 +33,10 @@ testado, reduzir tickets de bug e suporte.
    ```
    Depois rode `/mcp` no Claude Code para autenticar no navegador.
 2. **Conductor** — app instalado, repo aberto, integração com Linear e GitHub ativada.
-3. **Browser MCP** para o `qa-tester`:
-   ```
-   claude mcp add --scope project chrome-devtools -- npx -y chrome-devtools-mcp@latest
-   ```
-4. **GitHub** — branch protection em `main`: exigir CI verde + 1 review. Ativar Merge Queue
+3. **GitHub** — branch protection em `main`: exigir CI verde + 1 review. Ativar Merge Queue
    quando começar a rodar várias tasks em paralelo.
-5. `.env.local` preenchido a partir de `.env.example`.
-6. `npm install` (instala as dev deps de lint/test adicionadas por este setup).
+4. `.env.local` preenchido a partir de `.env.example`.
+5. `npm install` (instala as dev deps de lint/test adicionadas por este setup).
 
 ## Etapa 1 — Da ideia à spec
 
@@ -82,16 +78,24 @@ o teste descreve o comportamento esperado antes.
 
 > Sem Conductor: `scripts/worktree.sh new TEC-123` cria o worktree + branch manualmente.
 
-## Etapa 4 — QA no browser
+## Etapa 4 — QA (test case manual, sem browser no agente)
 
-No worktree, com o server no ar (`npm run dev`):
+O `qa-tester` não dirige mais o browser — isso consumia muito token no MCP. Ele gera o
+roteiro, você testa, ele avalia:
 
 ```
 /qa TEC-123
 ```
 
-O `qa-tester` abre o Chrome via MCP, executa os fluxos da spec, verifica console/network,
-e reporta bugs reproduzíveis. **Bug → volta pra Etapa 3** no mesmo worktree.
+1. Primeira chamada: o `qa-tester` lê a spec e escreve o test case em
+   `docs/qa/TEC-123.md` (casos cobrindo mobile/desktop, vazio, erro de rede,
+   deslogado/logado, dark mode) e para.
+2. Com o server no ar (`npm run dev`), você roda cada caso manualmente no Chrome e
+   preenche Resultado/Observado no arquivo.
+3. Segunda chamada (`/qa TEC-123` de novo): o `qa-tester` lê o resultado, cria uma issue
+   no Linear para cada linha ❌ Falhou (relacionada à task original) e marca o arquivo
+   como `APROVADO` ou `REPROVADO`. **Reprovado → volta pra Etapa 3** no mesmo worktree,
+   agora com issues de bug abertas para guiar a correção.
 
 ## Etapa 5 — Ship check
 
@@ -127,7 +131,7 @@ ou local. Validado → merge (via Merge Queue quando houver paralelismo). Vercel
 
 | Onde falhou | Volta para |
 |---|---|
-| QA (browser) | Etapa 3, mesmo worktree |
+| QA (test run reprovado) | Etapa 3, mesmo worktree — issues de bug já abertas no Linear |
 | Ship check | Etapa 3 |
 | CI | Etapa 3 |
 | Teste manual | Etapa 3, ou re-scope na spec |
