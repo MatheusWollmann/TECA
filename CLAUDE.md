@@ -49,7 +49,7 @@ Detalhes em `docs/WORKFLOW.md`. Resumo:
 | `design-specialist` | UI/UX mobile + desktop, dentro do design system do TECA |
 | `react-engineer` | Implementação em React / TS / Supabase |
 | `test-specialist` | Vitest + Testing Library, define o contrato de teste antes do código |
-| `qa-tester` | Testa no browser real via MCP, reporta bugs reproduzíveis |
+| `qa-tester` | Gera test case a partir da spec (`docs/qa/`); você roda manualmente no browser; ele avalia o resultado e cria issues de bug no Linear |
 | `security-reviewer` | Revisa o diff: RLS, auth, XSS, segredos no bundle |
 | `code-reviewer` | Não é subagente local — é o skill `code-review` rodando no CI (`.github/workflows/claude-code-review.yml`) ao abrir/atualizar PR. Revisa correção + reuso/simplificação/eficiência e comenta inline |
 
