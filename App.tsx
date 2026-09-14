@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Prayer, Page, Circulo, UserRole, PrayerCategory, PrayerEditSuggestion } from './types';
 import { api } from './api';
 import { captureError } from './lib/observability';
@@ -290,27 +290,54 @@ const App: React.FC = () => {
     setDarkMode(isDark);
   }, []);
 
+  // Captura a decisão de recovery (hash + promise de establishRecoverySession, se for
+  // o caso) uma única vez por instância do componente. Em dev, o React.StrictMode
+  // (index.tsx) roda o efeito abaixo duas vezes de forma síncrona (setup -> cleanup ->
+  // setup) antes do 1º await resolver: sem esse guard, a 1ª execução já limpa o hash
+  // real da URL via replaceState e dispara establishRecoverySession (setSession de
+  // verdade) antes da 2ª execução (a que "sobrevive" ao cleanup) conseguir ler o hash —
+  // que já estaria vazio, fazendo o fluxo de recovery nunca aparecer em dev, com duas
+  // chamadas de auth rodando em paralelo. Guardando a decisão + a promise em vez de
+  // recalcular do zero, todas as execuções do efeito compartilham a mesma chamada.
+  const recoveryDispatchRef = useRef<
+    | { isRecoveryAttempt: true; promise: Promise<boolean>; errorCode?: string }
+    | { isRecoveryAttempt: false }
+    | null
+  >(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const hash = window.location.hash;
-        const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
-        // O Supabase usa o mesmo formato de erro (#error=...&error_code=...,
-        // sem 'type=') pra qualquer link de ação expirado/inválido — recovery,
-        // confirmação de cadastro, convite, magic link. Não dá pra saber a
-        // origem só pelo hash; tratamos como recovery (única tela que existe
-        // pra isso hoje) mas sem afirmar na UI que era exatamente esse o caso.
-        const isRecoveryAttempt = hashParams.get('type') === 'recovery' || hashParams.has('error');
-        if (isRecoveryAttempt) {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          const ok = hashParams.has('error') ? false : await api.establishRecoverySession(hash);
+        if (recoveryDispatchRef.current === null) {
+          const hash = window.location.hash;
+          const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+          // O Supabase usa o mesmo formato de erro (#error=...&error_code=...,
+          // sem 'type=') pra qualquer link de ação expirado/inválido — recovery,
+          // confirmação de cadastro, convite, magic link. Não dá pra saber a
+          // origem só pelo hash; tratamos como recovery (única tela que existe
+          // pra isso hoje) mas sem afirmar na UI que era exatamente esse o caso.
+          const isRecoveryAttempt = hashParams.get('type') === 'recovery' || hashParams.has('error');
+          if (isRecoveryAttempt) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            recoveryDispatchRef.current = {
+              isRecoveryAttempt: true,
+              promise: hashParams.has('error') ? Promise.resolve(false) : api.establishRecoverySession(hash),
+              errorCode: hashParams.get('error_code') ?? undefined,
+            };
+          } else {
+            recoveryDispatchRef.current = { isRecoveryAttempt: false };
+          }
+        }
+        const dispatch = recoveryDispatchRef.current;
+        if (dispatch.isRecoveryAttempt) {
+          const ok = await dispatch.promise;
           if (!ok) {
             // A UI só mostra "Link inválido" (nenhum detalhe técnico) — registra o
             // motivo real pra não mascarar um link expirando com frequência anormal.
             captureError(new Error('Link de ação (recovery ou outro) inválido ou expirado'), {
               flow: 'establish_recovery_session',
-              errorCode: hashParams.get('error_code') ?? undefined,
+              errorCode: dispatch.errorCode,
             });
           }
           if (!cancelled) {
@@ -393,13 +420,27 @@ const App: React.FC = () => {
     setCurrentPage(Page.Home);
   };
 
-  const handleRequestNewLinkFromRecovery = () => {
+  // establishRecoverySession já autentica a pessoa (supabase.auth.setSession, que
+  // persiste) só de ela abrir o link do e-mail, antes de trocar a senha de fato.
+  // Sem deslogar aqui, quem abandona o fluxo (link inválido, ou "voltar" sem salvar)
+  // continua de fato autenticado no navegador — achado do code-reviewer no PR #10.
+  const abandonRecoverySession = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // Não pode travar o usuário na tela de recovery por causa disso.
+    }
+  };
+
+  const handleRequestNewLinkFromRecovery = async () => {
+    await abandonRecoverySession();
     setRecoveryStatus(null);
     setAuthInitialMode('forgot');
     setShowAuth(true);
   };
 
-  const handleBackToLoginFromRecovery = () => {
+  const handleBackToLoginFromRecovery = async () => {
+    await abandonRecoverySession();
     setRecoveryStatus(null);
     setAuthInitialMode('login');
     setShowAuth(true);

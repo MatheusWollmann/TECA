@@ -1,5 +1,7 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
 import { supabaseMock } from './test/setup';
 
@@ -19,6 +21,7 @@ beforeEach(() => {
   captureError.mockClear();
   supabaseMock.auth.setSession.mockReset();
   supabaseMock.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  supabaseMock.auth.signOut.mockClear();
 });
 
 afterEach(() => {
@@ -59,5 +62,51 @@ describe('App — dispatch do bootstrap a partir do hash da URL', () => {
     expect(screen.queryByText('Este link está inválido ou expirado.')).not.toBeInTheDocument();
     expect(screen.queryByText('Defina uma nova senha')).not.toBeInTheDocument();
     expect(supabaseMock.auth.setSession).not.toHaveBeenCalled();
+  });
+
+  // Achado do code-reviewer no PR #10: em dev, React.StrictMode roda este efeito
+  // duas vezes de forma síncrona (setup -> cleanup -> setup) antes do 1º await
+  // resolver. Sem o guard em recoveryDispatchRef, a 1ª execução já limparia o hash
+  // real da URL antes da 2ª conseguir lê-lo, e as duas disparariam setSession em
+  // paralelo. Reproduz isso de propósito envolvendo o render em StrictMode.
+  it('sob React.StrictMode (duplo-disparo do efeito em dev), o hash de recovery ainda é processado e setSession roda só uma vez', async () => {
+    window.location.hash = '#access_token=abc&refresh_token=xyz&type=recovery';
+    supabaseMock.auth.setSession.mockResolvedValueOnce({ error: null });
+
+    render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    );
+
+    expect(await screen.findByText('Defina uma nova senha')).toBeInTheDocument();
+    expect(supabaseMock.auth.setSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('App — abandonar o fluxo de recovery desloga a sessão pendurada', () => {
+  it('"Pedir novo link" (link inválido) chama api.logout antes de voltar pra AuthScreen', async () => {
+    window.location.hash = '#error=access_denied&error_code=otp_expired';
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Este link está inválido ou expirado.');
+
+    await user.click(screen.getByRole('button', { name: 'Pedir novo link de redefinição' }));
+
+    expect(supabaseMock.auth.signOut).toHaveBeenCalled();
+    expect(await screen.findByPlaceholderText('exemplo@email.com')).toBeInTheDocument();
+  });
+
+  it('"Voltar para o login" (após establishRecoverySession bem-sucedido) chama api.logout antes de voltar pra AuthScreen', async () => {
+    window.location.hash = '#access_token=abc&refresh_token=xyz&type=recovery';
+    supabaseMock.auth.setSession.mockResolvedValueOnce({ error: null });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('Defina uma nova senha');
+
+    await user.click(screen.getByRole('button', { name: 'Voltar para o login' }));
+
+    expect(supabaseMock.auth.signOut).toHaveBeenCalled();
+    expect(await screen.findByPlaceholderText('exemplo@email.com')).toBeInTheDocument();
   });
 });
