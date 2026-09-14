@@ -72,9 +72,6 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm text-center font-medium">
               Este link está inválido ou expirado.
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-              Se você estava tentando redefinir sua senha, peça um novo link abaixo.
-            </p>
             <button
               type="button"
               onClick={onRequestNewLink}
