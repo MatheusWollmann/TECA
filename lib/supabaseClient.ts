@@ -19,6 +19,9 @@ function getOrCreateClient(): SupabaseClient {
         persistSession: true,
         autoRefreshToken: true,
         // Evita travar o bootstrap em URLs com hash/código (ex.: OAuth mal configurado).
+        // O hash de recovery (#access_token=...&type=recovery) é tratado manualmente
+        // no bootstrap do App.tsx (spec 0003 / TEC-7, via api.establishRecoverySession),
+        // então a detecção automática continua desligada de propósito — não mude para true.
         detectSessionInUrl: false,
       },
     });

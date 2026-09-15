@@ -355,6 +355,30 @@ export const api = {
     if (error) throw error;
   },
 
+  async completePasswordReset(newPassword: string): Promise<void> {
+    assertConfigured();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
+  async establishRecoverySession(hash: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+    if (!access_token || !refresh_token) return false;
+    try {
+      // Contrato: nunca lança — quem chama (bootstrap do App.tsx) trata isso
+      // como "nunca lança" pra decidir entre a tela de recovery e o fluxo
+      // normal, então um throw real aqui (ex.: falha de rede/storage no
+      // setSession) precisa virar `false`, não escapar pro catch genérico.
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
   async logout(): Promise<void> {
     if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();

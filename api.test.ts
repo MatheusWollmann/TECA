@@ -16,6 +16,8 @@ beforeEach(() => {
   supabaseMock.update.mockReset().mockReturnThis();
   supabaseMock.single.mockReset().mockResolvedValue({ data: null, error: null });
   supabaseMock.auth.resetPasswordForEmail.mockReset();
+  supabaseMock.auth.updateUser.mockReset();
+  supabaseMock.auth.setSession.mockReset();
   // fetchCirculoById usa `.maybeSingle()`, que não está no mock base.
   (supabaseMock as unknown as Record<string, unknown>).maybeSingle = vi
     .fn()
@@ -63,6 +65,67 @@ describe('api.requestPasswordReset', () => {
     supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: new Error('boom') });
 
     await expect(api.requestPasswordReset('joana@teca.app.br')).rejects.toThrow('boom');
+  });
+});
+
+// Contrato TEC-7 (item 3 da spec): completar a redefinição de senha e estabelecer a
+// sessão de recuperação a partir do hash do link enviado por e-mail.
+describe('api.completePasswordReset', () => {
+  it('chama updateUser com a nova senha', async () => {
+    supabaseMock.auth.updateUser.mockResolvedValueOnce({ error: null });
+
+    await api.completePasswordReset('novaSenha123');
+
+    expect(supabaseMock.auth.updateUser).toHaveBeenCalledWith({ password: 'novaSenha123' });
+  });
+
+  it('rejeita quando o Supabase retorna erro', async () => {
+    supabaseMock.auth.updateUser.mockResolvedValueOnce({ error: new Error('boom') });
+
+    await expect(api.completePasswordReset('novaSenha123')).rejects.toThrow('boom');
+  });
+});
+
+describe('api.establishRecoverySession', () => {
+  it('retorna true e chama setSession com os tokens de um hash válido', async () => {
+    supabaseMock.auth.setSession.mockResolvedValueOnce({ error: null });
+
+    const resultado = await api.establishRecoverySession(
+      '#access_token=abc&refresh_token=xyz&type=recovery',
+    );
+
+    expect(resultado).toBe(true);
+    expect(supabaseMock.auth.setSession).toHaveBeenCalledWith({
+      access_token: 'abc',
+      refresh_token: 'xyz',
+    });
+  });
+
+  it('retorna false sem chamar setSession quando o hash não tem os tokens (link expirado)', async () => {
+    const resultado = await api.establishRecoverySession('#error=access_denied&error_code=otp_expired');
+
+    expect(resultado).toBe(false);
+    expect(supabaseMock.auth.setSession).not.toHaveBeenCalled();
+  });
+
+  it('retorna false quando o Supabase rejeita os tokens (setSession com erro)', async () => {
+    supabaseMock.auth.setSession.mockResolvedValueOnce({ error: new Error('expired') });
+
+    const resultado = await api.establishRecoverySession(
+      '#access_token=abc&refresh_token=xyz&type=recovery',
+    );
+
+    expect(resultado).toBe(false);
+  });
+
+  it('retorna false (não lança) quando setSession lança de verdade, ex.: falha de rede/storage', async () => {
+    supabaseMock.auth.setSession.mockRejectedValueOnce(new Error('network down'));
+
+    const resultado = await api.establishRecoverySession(
+      '#access_token=abc&refresh_token=xyz&type=recovery',
+    );
+
+    expect(resultado).toBe(false);
   });
 });
 

@@ -249,6 +249,14 @@ describe('AuthScreen — modo forgot (recuperar senha)', () => {
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
   });
 
+  it('renderiza direto no modo forgot quando initialMode="forgot" (sem passar pelo login)', () => {
+    render(<AuthScreen onLogin={vi.fn()} initialMode="forgot" />);
+
+    expect(screen.getByPlaceholderText('exemplo@email.com')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar link de recuperação' })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('********')).not.toBeInTheDocument();
+  });
+
   it('volta para o form de login normal ao clicar "← Voltar para o login" depois do sucesso', async () => {
     supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
     render(<AuthScreen onLogin={vi.fn()} />);

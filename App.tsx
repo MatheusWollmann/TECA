@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Prayer, Page, Circulo, UserRole, PrayerCategory, PrayerEditSuggestion } from './types';
 import { api } from './api';
+import { captureError } from './lib/observability';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import AuthScreen from './screens/AuthScreen';
@@ -14,6 +15,7 @@ import DevotionDetailScreen from './screens/DevotionDetailScreen';
 import EditPrayerScreen from './screens/EditPrayerScreen';
 import EditorReviewScreen from './screens/EditorReviewScreen';
 import CirculoDetailScreen from './screens/CommunityDetailScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import CirculoNav from './components/CirculoNav';
 import { LoaderIcon, BookOpenIcon, UsersIcon, CalendarIcon, HeartIcon, CrossIcon, XIcon, ArrowLeftIcon } from './components/Icons';
 import { PRAYER_CATEGORIES } from './constants';
@@ -280,16 +282,70 @@ const App: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [publicSelectedPrayer, setPublicSelectedPrayer] = useState<Prayer | null>(null);
   const [showPublicCatalog, setShowPublicCatalog] = useState<'all' | 'devotions' | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<'valid' | 'invalid' | null>(null);
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'forgot'>('login');
 
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
     setDarkMode(isDark);
   }, []);
 
+  // Captura a decisão de recovery (hash + promise de establishRecoverySession, se for
+  // o caso) uma única vez por instância do componente. Em dev, o React.StrictMode
+  // (index.tsx) roda o efeito abaixo duas vezes de forma síncrona (setup -> cleanup ->
+  // setup) antes do 1º await resolver: sem esse guard, a 1ª execução já limpa o hash
+  // real da URL via replaceState e dispara establishRecoverySession (setSession de
+  // verdade) antes da 2ª execução (a que "sobrevive" ao cleanup) conseguir ler o hash —
+  // que já estaria vazio, fazendo o fluxo de recovery nunca aparecer em dev, com duas
+  // chamadas de auth rodando em paralelo. Guardando a decisão + a promise em vez de
+  // recalcular do zero, todas as execuções do efeito compartilham a mesma chamada.
+  const recoveryDispatchRef = useRef<
+    | { isRecoveryAttempt: true; promise: Promise<boolean>; errorCode?: string }
+    | { isRecoveryAttempt: false }
+    | null
+  >(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (recoveryDispatchRef.current === null) {
+          const hash = window.location.hash;
+          const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+          // O Supabase usa o mesmo formato de erro (#error=...&error_code=...,
+          // sem 'type=') pra qualquer link de ação expirado/inválido — recovery,
+          // confirmação de cadastro, convite, magic link. Não dá pra saber a
+          // origem só pelo hash; tratamos como recovery (única tela que existe
+          // pra isso hoje) mas sem afirmar na UI que era exatamente esse o caso.
+          const isRecoveryAttempt = hashParams.get('type') === 'recovery' || hashParams.has('error');
+          if (isRecoveryAttempt) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            recoveryDispatchRef.current = {
+              isRecoveryAttempt: true,
+              promise: hashParams.has('error') ? Promise.resolve(false) : api.establishRecoverySession(hash),
+              errorCode: hashParams.get('error_code') ?? undefined,
+            };
+          } else {
+            recoveryDispatchRef.current = { isRecoveryAttempt: false };
+          }
+        }
+        const dispatch = recoveryDispatchRef.current;
+        if (dispatch.isRecoveryAttempt) {
+          const ok = await dispatch.promise;
+          if (!ok) {
+            // A UI só mostra "Link inválido" (nenhum detalhe técnico) — registra o
+            // motivo real pra não mascarar um link expirando com frequência anormal.
+            captureError(new Error('Link de ação (recovery ou outro) inválido ou expirado'), {
+              flow: 'establish_recovery_session',
+              errorCode: dispatch.errorCode,
+            });
+          }
+          if (!cancelled) {
+            setRecoveryStatus(ok ? 'valid' : 'invalid');
+            setIsLoading(false);
+          }
+          return;
+        }
         const sessionUser = await api.restoreSession();
         if (cancelled) return;
         if (sessionUser) {
@@ -353,12 +409,55 @@ const App: React.FC = () => {
     await refreshData();
     setCurrentPage(Page.Home);
     setShowAuth(false);
+    // authInitialMode pode ter ficado em 'forgot' (fluxo de recovery); sem isso,
+    // um próximo login (após logout) reabriria a AuthScreen direto no modo errado.
+    setAuthInitialMode('login');
+  };
+
+  const handleRecoveryComplete = async () => {
+    await refreshData();
+    setRecoveryStatus(null);
+    setCurrentPage(Page.Home);
+  };
+
+  // establishRecoverySession autentica a pessoa (supabase.auth.setSession, que
+  // persiste) só quando o hash tem tokens válidos e o Supabase os aceita —
+  // exatamente o caso recoveryStatus === 'valid'. Sem deslogar aqui, quem
+  // abandona esse fluxo (ex.: "Voltar para o login" sem salvar a senha nova)
+  // continua de fato autenticado no navegador — achado do code-reviewer no
+  // PR #10. Mas quando recoveryStatus é 'invalid' (link expirado/#error=...),
+  // establishRecoverySession nunca chegou a rodar setSession — não existe
+  // sessão de recovery pra abandonar, e uma sessão normal preexistente (quem
+  // já estava logado e abriu um link de e-mail velho) não deve ser derrubada
+  // à toa (2º achado do code-reviewer, sobre este mesmo trecho).
+  const abandonRecoverySession = async () => {
+    if (recoveryStatus !== 'valid') return;
+    try {
+      await api.logout();
+    } catch {
+      // Não pode travar o usuário na tela de recovery por causa disso.
+    }
+  };
+
+  const handleRequestNewLinkFromRecovery = async () => {
+    await abandonRecoverySession();
+    setRecoveryStatus(null);
+    setAuthInitialMode('forgot');
+    setShowAuth(true);
+  };
+
+  const handleBackToLoginFromRecovery = async () => {
+    await abandonRecoverySession();
+    setRecoveryStatus(null);
+    setAuthInitialMode('login');
+    setShowAuth(true);
   };
 
   const handleLogout = async () => {
     await api.logout();
     setUser(null);
     setEditSuggestions([]);
+    setAuthInitialMode('login');
     try {
       const [p, c] = await Promise.all([api.fetchPublicPrayers(), api.fetchPublicCirculos()]);
       setPrayers(p);
@@ -596,10 +695,20 @@ const App: React.FC = () => {
     }
   };
 
+  if (recoveryStatus) {
+    return (
+      <ResetPasswordScreen
+        status={recoveryStatus}
+        onSuccess={handleRecoveryComplete}
+        onRequestNewLink={handleRequestNewLinkFromRecovery}
+        onBackToLogin={handleBackToLoginFromRecovery}
+      />
+    );
+  }
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark"><LoaderIcon className="w-12 h-12 text-gold-subtle" /></div>;
   if (!user) {
     if (showAuth) {
-      return <AuthScreen onLogin={handleLogin} />;
+      return <AuthScreen onLogin={handleLogin} initialMode={authInitialMode} />;
     }
 
     const publicDevotions = prayers.filter(p => p.isDevotion);
